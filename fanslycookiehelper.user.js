@@ -2,10 +2,10 @@
 // @name        Fansly Cookie Helper
 // @namespace   https://fansly.com
 // @include     https://fansly.com/*
-// @namespace https://github.com/n30liberal/Backup-XenForo-Watched-Threads/
-// @updateURL https://github.com/n30liberal/Backup-XenForo-Watched-Threads/raw/main/getwatched.user.js
-// @downloadURL https://github.com/n30liberal/Backup-XenForo-Watched-Threads/raw/main/getwatched.user.js
-// @version     0.3
+// @namespace https://github.com/n30liberal/random-userscripts/
+// @updateURL https://github.com/n30liberal/random-userscripts/raw/main/fanslycookiehelper.user.js
+// @downloadURL https://github.com/n30liberal/random-userscripts/raw/main/fanslycookiehelper.user.js
+// @version     0.4
 // @grant       none
 // ==/UserScript==
 
