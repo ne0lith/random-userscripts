@@ -3,9 +3,9 @@
 // @namespace   https://www.tiktok.com/
 // @include     https://www.tiktok.com/@*
 // @author ne0liberal
-// @updateURL https://github.com/n30liberal/random-userscripts/raw/main/tiktok-enhancer.user.js
-// @downloadURL https://github.com/n30liberal/random-userscripts/raw/main/tiktok-enhancer.user.js
-// @version     1.0.2
+// @updateURL https://github.com/n30liberal/tiktok-browser-scripts/raw/main/tiktok-enhancer.user.js
+// @downloadURL https://github.com/n30liberal/tiktok-browser-scripts/raw/main/tiktok-enhancer.user.js
+// @version     1.0.3
 // @grant       none
 // ==/UserScript==
 
@@ -70,7 +70,7 @@ javascript: (function () {
                 }
                 const currentScrollHeight = document.body.scrollHeight;
                 window.scrollTo(0, currentScrollHeight);
-                if (intervalCount % 100 === 0) {
+                if (intervalCount % 500 === 0) {
                     window.scrollTo(0, window.scrollY - 5);
                 }
                 if (window.innerHeight + window.scrollY >= currentScrollHeight) {
