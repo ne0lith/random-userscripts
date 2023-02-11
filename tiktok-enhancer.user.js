@@ -11,13 +11,9 @@
 
 // USAGE:
 // 1. Open a TikTok profile.
-// 2. To prevent slow scrolling to the bottom, avoid scrolling down the page.
-// If you have already scrolled, refresh the page.
-// This is due to a bug in the jumpToBottom function.
-// The reason for this bug is still unknown, but it may be related to the occasional upward jiggle required for TikTok to load more videos.
-// 3. Start the script by pressing "Ctrl + Alt + A".
-// - To stop the script, simply press "Alt + A". The links that were loaded prior to stopping the script will be copied.
-// 4. Wait for the script to complete its operation.
+// 2. Start the script by pressing "Ctrl + Alt + A".
+// 3. Wait for the script to complete its operation.
+// - To halt the script, simply press "Alt + A". The links that were loaded prior to stopping the script will be copied.
 
 javascript: (function () {
     function main() {
