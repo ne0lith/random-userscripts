@@ -3,9 +3,9 @@
 // @namespace   https://www.tiktok.com/
 // @include     https://www.tiktok.com/@*
 // @author ne0liberal
-// @updateURL https://github.com/n30liberal/tiktok-browser-scripts/raw/main/tiktok-enhancer.user.js
-// @downloadURL https://github.com/n30liberal/tiktok-browser-scripts/raw/main/tiktok-enhancer.user.js
-// @version     1.0.3
+// @updateURL https://github.com/n30liberal/random-userscripts/raw/main/tiktok-enhancer.user.js
+// @downloadURL https://github.com/n30liberal/random-userscripts/raw/main/tiktok-enhancer.user.js
+// @version     1.0.5
 // @grant       none
 // ==/UserScript==
 
