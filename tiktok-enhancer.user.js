@@ -1,13 +1,15 @@
 // ==UserScript==
 // @name        TikTok Profile Enhancer
 // @description Just some fun enhancements for TikTok.
-// @version     1.0.9
+// @version     1.1.0
 // @author ne0liberal
 // @namespace   https://www.tiktok.com/
 // @match    https://www.tiktok.com/@*
 // @updateURL https://github.com/n30liberal/random-userscripts/raw/main/tiktok-enhancer.user.js
 // @downloadURL https://github.com/n30liberal/random-userscripts/raw/main/tiktok-enhancer.user.js
 // @grant       none
+// @run-at      document-idle
+// @noframes
 // ==/UserScript==
 
 // USAGE:
