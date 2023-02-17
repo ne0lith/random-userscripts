@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        TikTok Profile Enhancer
 // @description Just some fun enhancements for TikTok.
-// @version     1.1.0
+// @version     1.1.1
 // @author ne0liberal
 // @namespace   https://www.tiktok.com/
 // @match    https://www.tiktok.com/@*
@@ -99,6 +99,7 @@ javascript: (function () {
     }
 
     console.log(`TikTok Profile Enhancer loaded. Version: ${GM_info.script.version}`);
+    unsafeWindow.TikTokProfileEnhancerLoaded = true;
     document.addEventListener("keydown", (event) => {
         if (event.code === "KeyA" && event.altKey && event.ctrlKey) {
             main();
