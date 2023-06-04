@@ -1,7 +1,8 @@
 // ==UserScript==
 // @name         Redirect to og:image URL.
 // @namespace    https://jpg.pet/
-// @version      1.0
+// @author ne0liberal
+// @version      1.1
 // @description  Redirects the page to the URL specified in the og:image meta tag
 // @match        https://jpg.pet/*
 // @updateURL https://github.com/n30liberal/random-userscripts/raw/main/jpg-enhancer.user.js
