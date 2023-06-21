@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name         Instagram CDN URL Extractor and File Downloader
+// @name         Instagram CDN URL Extractor and File Downloader via StorySaver
 // @namespace    your-namespace
 // @version      1.4
 // @author ne0liberal
