@@ -1,14 +1,14 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor and File Downloader via StorySaver
 // @namespace    your-namespace
-// @version      1.8
+// @version      1.9
 // @author ne0liberal
 // @description  Extracts CDN URLs from Instagram and saves files with the username as a prefix
 // @match        https://www.storysaver.net/*
 // @updateURL https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @downloadURL https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @grant        GM_xmlhttpRequest
-// @connect cdninstagram.com
+// @connect     cdninstagram.com
 // ==/UserScript==
 
 (function() {
@@ -56,20 +56,20 @@
         var downloadedFilenames = new Set(); // Track downloaded filenames
 
         // Load download history from localStorage
-        var downloadHistory = JSON.parse(localStorage.getItem("downloadHistory")) || {};
+        var downloadHistoryStorySaver = JSON.parse(localStorage.getItem("downloadHistoryStorySaver")) || {};
 
         cdnUrls.forEach(function(url) {
             var filename = url.split("/").pop().split("?")[0];
             filename = username + "-" + filename;
 
             // Check if the file has already been downloaded
-            if (!downloadedFilenames.has(filename) && !downloadHistory[filename]) {
+            if (!downloadedFilenames.has(filename) && !downloadHistoryStorySaver[filename]) {
                 setTimeout(function() {
                     saveFile(url, filename);
 
                     // Update download history
-                    downloadHistory[filename] = true;
-                    localStorage.setItem("downloadHistory", JSON.stringify(downloadHistory));
+                    downloadHistoryStorySaver[filename] = true;
+                    localStorage.setItem("downloadHistoryStorySaver", JSON.stringify(downloadHistoryStorySaver));
 
                     // Check if all downloads are finished
                     if (downloadedFilenames.size === cdnUrls.size - 1) {
