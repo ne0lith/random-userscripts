@@ -9,6 +9,7 @@
 // @downloadURL https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @grant        GM_xmlhttpRequest
 // @connect     cdninstagram.com
+// @connect     scontent-ams4-1.cdninstagram.com
 // ==/UserScript==
 
 (function() {
