@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Profile to XenForo Search
 // @namespace    https://github.com/n30liberal/random-userscripts/
-// @version      0.5
+// @version      1.0
 // @description  Add a button to search the profile URL on a XenForo forum
 // @author       ne0liberal
 // @match        https://onlyfans.com/*
@@ -28,21 +28,23 @@
         if (existingButton) return;
 
         const button = document.createElement('div');
+        // round the corners
         button.id = 'xenforo-search-button';
-        button.textContent = 'XenForo Search';
+        button.textContent = 'Search';
         button.style.position = 'fixed';
         button.style.top = '10px';
         button.style.left = '10px';
-        button.style.width = '100px';
-        button.style.height = '100px';
-        button.style.background = 'red';
-        button.style.color = 'white';
+        button.style.width = '75px';
+        button.style.height = '75px';
+        button.style.background = '#00aff0';
+        button.style.color = '#feeff7';
         button.style.fontWeight = 'bold';
-        button.style.fontSize = '18px';
+        button.style.fontSize = '13px';
         button.style.textAlign = 'center';
-        button.style.lineHeight = '100px';
+        button.style.lineHeight = '75px';
         button.style.cursor = 'pointer';
         button.style.zIndex = '9999';
+        button.style.borderRadius = '25%';
         button.addEventListener('click', function () {
             const profileURL = window.location.href;
             const searchURL = constructXenForoSearchURL(profileURL);
