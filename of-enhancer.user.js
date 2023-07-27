@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Profile to XenForo Search
 // @namespace    https://github.com/n30liberal/random-userscripts/
-// @version      3.1
+// @version      3.3
 // @description  Add a button to search the profile URL on a XenForo forum
 // @author       ne0liberal
 // @match        https://onlyfans.com/*
@@ -26,13 +26,13 @@
             profileRegex: /^https?:\/\/onlyfans\.com\/[a-zA-Z0-9_-]+$/,
             enabled: true,
         },
-        'www.instagram.com': {
+        'fansly.com': {
             colorScheme: {
-                background: '#e4405f',
+                background: '#2699F6',
                 color: '#ffffff',
             },
-            profileRegex: /^https?:\/\/www\.instagram\.com\/(?!(explore|)[a-zA-Z0-9_\.]+\/?$)/,
-            enabled: false,
+            profileRegex: /^https?:\/\/fansly\.com\/[a-zA-Z0-9_-]+\/posts$/,
+            enabled: true,
         },
         'twitter.com': {
             colorScheme: {
@@ -42,20 +42,20 @@
             profileRegex: /^https?:\/\/twitter\.com\/(?!(home|settings|notifications|explore|messages)\/?$)([a-zA-Z0-9_]+)(?:\/(media|with_replies|highlights|likes))?\/?$/,
             enabled: true,
         },
-        'fansly.com': {
+        'www.instagram.com': {
             colorScheme: {
-                background: '#2699F6',
+                background: '#e4405f',
                 color: '#ffffff',
             },
-            profileRegex: /^https?:\/\/fansly\.com\/[a-zA-Z0-9_-]+\/posts$/,
-            enabled: true,
+            profileRegex: /^https?:\/\/www\.instagram\.com\/(?!(explore|)[a-zA-Z0-9_\.]+\/?$)/,
+            enabled: false,
         },
         'www.tiktok.com': {
             colorScheme: {
                 background: '#69c9d0',
                 color: '#ffffff',
             },
-            profileRegex: /^https?:\/\/www\.tiktok\.com\/@([a-zA-Z0-9_]+)(?:\/video\/[0-9]+)?$/,
+            profileRegex: /https?:\/\/www\.tiktok\.com\/@/,
             enabled: true,
         },
         'www.reddit.com': {
@@ -78,16 +78,16 @@
     }
 
     function constructXenForoSearchURL(query) {
-        // Drop clean up Reddit URLs
+        // Clean up Reddit URLs
         query = query.replace(/https?:\/\/(?:www\.)?reddit\.com\/(r|u(?:ser)?|user)\/([a-zA-Z0-9_]+)\/?.*$/, 'https://www.reddit.com/$1/$2/');
 
-        // Drop clean up Tiktok URLs
-        query = query.replace(/https?:\/\/(?:www\.)?tiktok\.com\/@([a-zA-Z0-9_]+)(?:\/.*)?$/, 'https://www.tiktok.com/@$1');
+        // Clean up Tiktok URLs
+        query = query.replace(/(https?:\/\/(?:www\.)?tiktok\.com\/@)([a-zA-Z0-9_]+)(?:\/|(\?|$).*)?$/, '$1$2');
 
-        // Drop clean up Twitter URLs
+        // Clean up Twitter URLs
         query = query.replace(/\/?(media|with_replies|highlights|likes)?\/?$/, '');
 
-        // Drop clean up Fansly URLs
+        // Clean up Fansly URLs
         query = query.replace(/\/?posts$/, '');
 
         const xenForoBaseURL = 'https://simpcity.su/search/';
