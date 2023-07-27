@@ -28,7 +28,6 @@
         if (existingButton) return;
 
         const button = document.createElement('div');
-        // round the corners
         button.id = 'xenforo-search-button';
         button.textContent = 'Search';
         button.style.position = 'fixed';
