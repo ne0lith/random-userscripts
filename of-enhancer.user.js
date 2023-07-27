@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Profile to XenForo Search
 // @namespace    https://github.com/n30liberal/random-userscripts/
-// @version      3.5
+// @version      3.6
 // @description  Add a button to search the profile URL on a XenForo forum
 // @author       ne0liberal
 // @match        https://onlyfans.com/*
@@ -92,11 +92,11 @@
         return query;
     }
 
-    function constructXenForoSearchURL(query) {
+    function constructSearchURL(query) {
         const cleanedQuery = sanitizeQuery(query);
         const xenForoBaseURL = 'https://simpcity.su/search/';
         const encodedQuery = encodeURIComponent(cleanedQuery);
-        return `${xenForoBaseURL}?q=${encodedQuery}&o=date`;
+        return `${xenForoBaseURL}?q=${encodedQuery}&o=relevance`;
     }
 
     function addSearchButton() {
@@ -125,7 +125,7 @@
         button.style.borderRadius = '25%';
         button.addEventListener('click', function () {
             const profileURL = window.location.href;
-            const searchURL = constructXenForoSearchURL(profileURL);
+            const searchURL = constructSearchURL(profileURL);
             window.open(searchURL, '_blank');
         });
         document.body.appendChild(button);
