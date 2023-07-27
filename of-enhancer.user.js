@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Profile to XenForo Search
 // @namespace    https://github.com/n30liberal/random-userscripts/
-// @version      3.3
+// @version      3.5
 // @description  Add a button to search the profile URL on a XenForo forum
 // @author       ne0liberal
 // @match        https://onlyfans.com/*
@@ -77,21 +77,25 @@
         return false;
     }
 
-    function constructXenForoSearchURL(query) {
-        // Clean up Reddit URLs
+    function sanitizeQuery(query) {
         query = query.replace(/https?:\/\/(?:www\.)?reddit\.com\/(r|u(?:ser)?|user)\/([a-zA-Z0-9_]+)\/?.*$/, 'https://www.reddit.com/$1/$2/');
-
-        // Clean up Tiktok URLs
         query = query.replace(/(https?:\/\/(?:www\.)?tiktok\.com\/@)([a-zA-Z0-9_]+)(?:\/|(\?|$).*)?$/, '$1$2');
 
-        // Clean up Twitter URLs
-        query = query.replace(/\/?(media|with_replies|highlights|likes)?\/?$/, '');
+        if (query.includes('twitter.com')) {
+            query = query.replace(/\/?(media|with_replies|highlights|likes)?\/?$/, '');
+        }
 
-        // Clean up Fansly URLs
-        query = query.replace(/\/?posts$/, '');
+        if (query.includes('fansly.com')) {
+            query = query.replace(/\/?posts$/, '');
+        }
 
+        return query;
+    }
+
+    function constructXenForoSearchURL(query) {
+        const cleanedQuery = sanitizeQuery(query);
         const xenForoBaseURL = 'https://simpcity.su/search/';
-        const encodedQuery = encodeURIComponent(query);
+        const encodedQuery = encodeURIComponent(cleanedQuery);
         return `${xenForoBaseURL}?q=${encodedQuery}&o=date`;
     }
 
