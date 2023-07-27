@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Profile to XenForo Search
 // @namespace    https://github.com/n30liberal/random-userscripts/
-// @version      0.4
+// @version      0.5
 // @description  Add a button to search the profile URL on a XenForo forum
 // @author       ne0liberal
 // @match        https://onlyfans.com/*
@@ -33,14 +33,14 @@
         button.style.position = 'fixed';
         button.style.top = '10px';
         button.style.left = '10px';
-        button.style.width = '150px';
-        button.style.height = '150px';
+        button.style.width = '100px';
+        button.style.height = '100px';
         button.style.background = 'red';
         button.style.color = 'white';
         button.style.fontWeight = 'bold';
         button.style.fontSize = '18px';
         button.style.textAlign = 'center';
-        button.style.lineHeight = '150px';
+        button.style.lineHeight = '100px';
         button.style.cursor = 'pointer';
         button.style.zIndex = '9999';
         button.addEventListener('click', function () {
