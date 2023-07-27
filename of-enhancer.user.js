@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Profile to XenForo Search
 // @namespace    https://github.com/n30liberal/random-userscripts/
-// @version      1.0
+// @version      1.1
 // @description  Add a button to search the profile URL on a XenForo forum
 // @author       ne0liberal
 // @match        https://onlyfans.com/*
@@ -23,7 +23,7 @@
         return `${xenForoBaseURL}?q=${encodedQuery}&o=date`;
     }
 
-    function addRedSquareButton() {
+    function addSearchButton() {
         const existingButton = document.getElementById('xenforo-search-button');
         if (existingButton) return;
 
@@ -61,7 +61,7 @@
 
     const observer = new MutationObserver(function () {
         if (isProfilePage()) {
-            addRedSquareButton();
+            addSearchButton();
         } else {
             removeRedSquareButton();
         }
@@ -70,6 +70,6 @@
     observer.observe(document.body, { childList: true, subtree: true });
 
     if (isProfilePage()) {
-        addRedSquareButton();
+        addSearchButton();
     }
 })();
