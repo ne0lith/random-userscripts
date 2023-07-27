@@ -1,12 +1,15 @@
 // ==UserScript==
 // @name         Profile to XenForo Search
 // @namespace    https://github.com/n30liberal/random-userscripts/
-// @version      2.0
+// @version      3.1
 // @description  Add a button to search the profile URL on a XenForo forum
 // @author       ne0liberal
 // @match        https://onlyfans.com/*
 // @match        https://www.instagram.com/*
 // @match        https://twitter.com/*
+// @match        https://fansly.com/*
+// @match        https://www.tiktok.com/*
+// @match        https://www.reddit.com/*
 // @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/of-enhancer.user.js
 // @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/of-enhancer.user.js
 // ==/UserScript==
@@ -39,6 +42,30 @@
             profileRegex: /^https?:\/\/twitter\.com\/(?!(home|settings|notifications|explore|messages)\/?$)([a-zA-Z0-9_]+)(?:\/(media|with_replies|highlights|likes))?\/?$/,
             enabled: true,
         },
+        'fansly.com': {
+            colorScheme: {
+                background: '#2699F6',
+                color: '#ffffff',
+            },
+            profileRegex: /^https?:\/\/fansly\.com\/[a-zA-Z0-9_-]+\/posts$/,
+            enabled: true,
+        },
+        'www.tiktok.com': {
+            colorScheme: {
+                background: '#69c9d0',
+                color: '#ffffff',
+            },
+            profileRegex: /^https?:\/\/www\.tiktok\.com\/@([a-zA-Z0-9_]+)(?:\/video\/[0-9]+)?$/,
+            enabled: true,
+        },
+        'www.reddit.com': {
+            colorScheme: {
+                background: '#ff4500',
+                color: '#ffffff',
+            },
+            profileRegex: /^https?:\/\/www\.reddit\.com\/(?!(?:r\/(?:all|popular|mod)\/?$|[^/]*\/?$))(r\/[a-zA-Z0-9_]+|u(?:ser)?\/[a-zA-Z0-9_]+)\/?(?:\?.*)?$/,
+            enabled: true,
+        },
     };
 
     function isProfilePage() {
@@ -51,7 +78,17 @@
     }
 
     function constructXenForoSearchURL(query) {
-        query = query.replace(/\/(media|with_replies|highlights|likes)/, '');
+        // Drop clean up Reddit URLs
+        query = query.replace(/https?:\/\/(?:www\.)?reddit\.com\/(r|u(?:ser)?|user)\/([a-zA-Z0-9_]+)\/?.*$/, 'https://www.reddit.com/$1/$2/');
+
+        // Drop clean up Tiktok URLs
+        query = query.replace(/https?:\/\/(?:www\.)?tiktok\.com\/@([a-zA-Z0-9_]+)(?:\/.*)?$/, 'https://www.tiktok.com/@$1');
+
+        // Drop clean up Twitter URLs
+        query = query.replace(/\/?(media|with_replies|highlights|likes)?\/?$/, '');
+
+        // Drop clean up Fansly URLs
+        query = query.replace(/\/?posts$/, '');
 
         const xenForoBaseURL = 'https://simpcity.su/search/';
         const encodedQuery = encodeURIComponent(query);
