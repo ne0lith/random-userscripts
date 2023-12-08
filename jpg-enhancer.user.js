@@ -2,14 +2,14 @@
 // @name         Redirect to og:image URL
 // @namespace    https://jpg.pet/
 // @author       ne0liberal
-// @version      1.7
+// @version      2.0
 // @description  Redirects the page to the URL specified in the og:image meta tag, excluding login and upload URLs
 // @match        https://*.jpg.pet/*
 // @match        https://*.pixl.li/*
 // @match        https://*.jpg.church/*
 // @match        https://*.ibb.co/*
-// @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/jpg-enhancer.user.js
-// @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/jpg-enhancer.user.js
+// @updateURL    https://github.com/ne0lith/random-userscripts/raw/main/jpg-enhancer.user.js
+// @downloadURL  https://github.com/ne0lith/random-userscripts/raw/main/jpg-enhancer.user.js
 // @grant        none
 // ==/UserScript==
 
