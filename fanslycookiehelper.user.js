@@ -2,10 +2,10 @@
 // @name        Fansly Cookie Helper
 // @namespace   https://fansly.com
 // @include     https://fansly.com/*
-// @namespace https://github.com/n30liberal/random-userscripts/
-// @updateURL https://github.com/n30liberal/random-userscripts/raw/main/fanslycookiehelper.user.js
-// @downloadURL https://github.com/n30liberal/random-userscripts/raw/main/fanslycookiehelper.user.js
-// @version     0.4
+// @namespace https://github.com/ne0lith/random-userscripts/
+// @updateURL https://github.com/ne0lith/random-userscripts/raw/main/fanslycookiehelper.user.js
+// @downloadURL https://github.com/ne0lith/random-userscripts/raw/main/fanslycookiehelper.user.js
+// @version     1.0
 // @grant       none
 // ==/UserScript==
 
