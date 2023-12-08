@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Profile to XenForo Search
 // @namespace    https://github.com/n30liberal/random-userscripts/
-// @version      3.6
+// @version      4.0
 // @description  Add a button to search the profile URL on a XenForo forum
 // @author       ne0liberal
 // @match        https://onlyfans.com/*
@@ -10,8 +10,8 @@
 // @match        https://fansly.com/*
 // @match        https://www.tiktok.com/*
 // @match        https://www.reddit.com/*
-// @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/of-enhancer.user.js
-// @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/of-enhancer.user.js
+// @updateURL    https://github.com/ne0lith/random-userscripts/raw/main/of-enhancer.user.js
+// @downloadURL  https://github.com/ne0lith/random-userscripts/raw/main/of-enhancer.user.js
 // ==/UserScript==
 
 (function () {
