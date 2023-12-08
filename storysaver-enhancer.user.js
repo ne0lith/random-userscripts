@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor and File Downloader via StorySaver
 // @namespace    your-namespace
-// @version      4.0
+// @version      5.0
 // @author       ne0liberal
 // @description  Extracts CDN URLs from Instagram and saves files with the username as a prefix
 // @match        https://www.storysaver.net/*
-// @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
-// @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
+// @updateURL    https://github.com/ne0lith/random-userscripts/raw/main/storysaver-enhancer.user.js
+// @downloadURL  https://github.com/ne0lith/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
