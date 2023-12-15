@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor and File Downloader via StorySaver
 // @namespace    your-namespace
-// @version      5.0
+// @version      6.1
 // @author       ne0liberal
 // @description  Extracts CDN URLs from Instagram and saves files with the username as a prefix
 // @match        https://www.storysaver.net/*
@@ -42,6 +42,8 @@
     function extractAndSaveFiles() {
         var cdnUrls = new Set();
         var username = '';
+        var totalDownloads = 0;
+        var completedDownloads = 0;
 
         // Extract CDN URLs with _nc_ht= query param
         var links = document.getElementsByTagName("a");
@@ -97,19 +99,27 @@
         cdnUrls.forEach(function (url) {
             var filename = url.split("/").pop().split("?")[0];
             filename = username + "-" + filename;
-
+    
             if (!downloadedFilenames.has(filename) && !downloadHistoryStorySaver[filename]) {
+                totalDownloads++; // Increment total downloads counter
+    
                 setTimeout(function () {
                     saveFile(url, filename);
-
+    
                     // Update download history
                     downloadHistoryStorySaver[filename] = true;
                     localStorage.setItem("downloadHistoryStorySaver", JSON.stringify(downloadHistoryStorySaver));
-
+    
+                    completedDownloads++; // Increment completed downloads counter
                     console.log("Downloaded:", filename); // Log the downloaded filename
-
+    
+                    // Check if all downloads are complete
+                    if (completedDownloads === totalDownloads) {
+                        // Redirect back to https://www.storysaver.net/
+                        window.location.href = "https://www.storysaver.net/";
+                    }
                 }, delay * index);
-
+    
                 downloadedFilenames.add(filename); // Add filename to the set of downloaded filenames
                 index++;
             }
