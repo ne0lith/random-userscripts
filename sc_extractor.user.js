@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         URL Extractor
-// @version      1.0
+// @version      1.3
 // @description  Extracts URLs with specified substrings.
 // @author       neolith
 // @match        https://simpcity.su/threads/*
@@ -12,7 +12,8 @@
 (function () {
     'use strict';
 
-    var substringsToSearch = ['bunkr', 'cyberfile', 'coomer', 'mega'];
+    var defaultSubstrings = ['bunkr', 'cyberfile', 'coomer', 'mega'];
+    var substringsToSearch = [...defaultSubstrings];
 
     function extractAndCopyUrls() {
         var urls = [];
@@ -30,7 +31,7 @@
                 if (currentPosition >= targetPosition) {
                     clearInterval(interval);
 
-                    setTimeout(scrollToTop, 1000);
+                    scrollToTop();
                 }
             }, 50);
         }
@@ -38,27 +39,38 @@
         function scrollToTop() {
             window.scrollTo(0, 0);
 
-            setTimeout(function () {
-                var links = document.querySelectorAll('a');
+            setTimeout(extractUrls, 1000);
+        }
 
-                links.forEach(function (link) {
-                    if (substringsToSearch.some(substring => link.href.includes(substring))) {
-                        urls.push(link.href);
-                    }
-                });
+        function extractUrls() {
+            var links = document.querySelectorAll('a');
 
-                GM_setClipboard(urls.join('\n'), 'text');
-
-                if (urls.length > 0) {
-                    alert(urls.length + ' urls with specified substrings have been copied to clipboard:\n\n' + urls.join('\n'));
-                } else {
-                    console.log('No urls with specified substrings found');
+            links.forEach(function (link) {
+                if (substringsToSearch.some(substring => link.href.includes(substring))) {
+                    urls.push(link.href);
                 }
-            }, 1000);
+            });
+
+            GM_setClipboard(urls.join('\n'), 'text');
+
+            if (urls.length > 0) {
+                alert(urls.length + ' urls with specified substrings have been copied to clipboard:\n\n' + urls.join('\n'));
+            } else {
+                console.log('No urls with specified substrings found');
+            }
         }
 
         scrollToBottom();
     }
+
+    var inputBox = document.createElement('input');
+    inputBox.type = 'text';
+    inputBox.style.position = 'fixed';
+    inputBox.style.top = '100px';
+    inputBox.style.left = '70px';
+    inputBox.style.width = '150px';
+    inputBox.placeholder = 'Add substrings (comma-separated)';
+    inputBox.value = defaultSubstrings.join(', ');
 
     var box = document.createElement('div');
     box.style.position = 'fixed';
@@ -71,7 +83,11 @@
     box.style.zIndex = '9999';
     box.title = 'Click to extract URLs with specified substrings';
 
+    document.body.appendChild(inputBox);
     document.body.appendChild(box);
 
-    box.addEventListener('click', extractAndCopyUrls);
+    box.addEventListener('click', function () {
+        substringsToSearch = inputBox.value.split(',').map(substring => substring.trim()).filter(Boolean);
+        extractAndCopyUrls();
+    });
 })();
