@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         URL Extractor
-// @version      1.3
+// @version      1.5
 // @description  Extracts URLs with specified substrings.
 // @author       neolith
 // @match        https://simpcity.su/threads/*
@@ -63,13 +63,21 @@
         scrollToBottom();
     }
 
+    var label = document.createElement('label');
+    label.textContent = 'Domains to extract:';
+    label.style.position = 'fixed';
+    label.style.top = '97px';
+    label.style.left = '70px';
+    label.style.zIndex = '9999';
+
     var inputBox = document.createElement('input');
     inputBox.type = 'text';
     inputBox.style.position = 'fixed';
-    inputBox.style.top = '100px';
+    inputBox.style.top = '123px';
     inputBox.style.left = '70px';
-    inputBox.style.width = '150px';
+    inputBox.style.width = '200px';
     inputBox.placeholder = 'Add substrings (comma-separated)';
+    inputBox.style.zIndex = '9999';
     inputBox.value = defaultSubstrings.join(', ');
 
     var box = document.createElement('div');
@@ -83,6 +91,7 @@
     box.style.zIndex = '9999';
     box.title = 'Click to extract URLs with specified substrings';
 
+    document.body.appendChild(label);
     document.body.appendChild(inputBox);
     document.body.appendChild(box);
 
