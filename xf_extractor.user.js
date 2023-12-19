@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         URL Extractor
-// @version      1.0
+// @version      1.1
 // @description  Extracts URLs with specified substrings.
 // @author       neolith
 // @match        https://simpcity.su/threads/*
@@ -70,7 +70,6 @@
     containerDiv.style.width = '280px';
     containerDiv.style.height = '70px';
     containerDiv.style.background = '#272727';
-    containerDiv.style.cursor = 'pointer';
     containerDiv.style.zIndex = '9998';
     containerDiv.style.borderRadius = '10px';
     containerDiv.style.border = '1px solid #414141';
@@ -79,9 +78,10 @@
     label.textContent = 'Domains to extract:';
     label.style.position = 'absolute';
     label.style.top = '7px';
-    label.style.left = '10px';
+    label.style.left = '11px';
     label.style.zIndex = '9999';
     label.style.color = '#d3d3d3';
+    label.style.fontWeight = "600"
 
     var inputBox = document.createElement('input');
     inputBox.type = 'text';
@@ -91,6 +91,7 @@
     inputBox.style.width = '200px';
     inputBox.placeholder = 'Add substrings (comma-separated)';
     inputBox.style.zIndex = '9999';
+    inputBox.style.borderRadius = '3px';
     inputBox.value = defaultSubstrings.join(', ')
 
     var box = document.createElement('div');
@@ -99,9 +100,10 @@
     box.style.left = '220px';
     box.style.width = '50px';
     box.style.height = '50px';
-    box.style.background = 'red';
+    box.style.background = '#d3d3d3';
     box.style.cursor = 'pointer';
     box.style.zIndex = '9999';
+    box.style.borderRadius = '10px';
     box.title = 'Click to extract URLs with specified substrings';
 
     containerDiv.appendChild(label);
