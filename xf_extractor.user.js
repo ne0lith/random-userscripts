@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         URL Extractor
-// @version      1.1
+// @version      1.2
 // @description  Extracts URLs with specified substrings.
 // @author       neolith
 // @match        https://simpcity.su/threads/*
@@ -94,21 +94,31 @@
     inputBox.style.borderRadius = '3px';
     inputBox.value = defaultSubstrings.join(', ')
 
-    var box = document.createElement('div');
-    box.style.position = 'absolute';
-    box.style.top = '10px';
-    box.style.left = '220px';
-    box.style.width = '50px';
-    box.style.height = '50px';
-    box.style.background = '#d3d3d3';
-    box.style.cursor = 'pointer';
-    box.style.zIndex = '9999';
-    box.style.borderRadius = '10px';
-    box.title = 'Click to extract URLs with specified substrings';
+    var exportButton = document.createElement('div');
+    exportButton.style.position = 'absolute';
+    exportButton.style.top = '10px';
+    exportButton.style.left = '220px';
+    exportButton.style.width = '50px';
+    exportButton.style.height = '50px';
+    exportButton.style.background = '#d3d3d3';
+    exportButton.style.cursor = 'pointer';
+    exportButton.style.zIndex = '9999';
+    exportButton.style.borderRadius = '10px';
 
+    var buttonText = document.createElement('span');
+    buttonText.textContent = '▼';
+    buttonText.style.fontSize = '15px';
+    buttonText.style.color = '#272727';
+    buttonText.style.display = 'flex';
+    buttonText.style.alignItems = 'center';
+    buttonText.style.justifyContent = 'center';
+    buttonText.style.height = '100%';
+    buttonText.style.width = '100%';
+
+    exportButton.appendChild(buttonText);
     containerDiv.appendChild(label);
     containerDiv.appendChild(inputBox);
-    containerDiv.appendChild(box);
+    containerDiv.appendChild(exportButton);
 
     document.body.appendChild(containerDiv);
 
