@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         URL Extractor
-// @version      1.3
+// @version      1.6
 // @description  Extracts URLs with specified substrings.
 // @author       neolith
 // @match        https://simpcity.su/threads/*
@@ -13,7 +13,12 @@
     'use strict';
 
     var defaultSubstrings = ['bunkr', 'cyberfile', 'coomer', 'mega'];
+    var blacklistedHosts = ['simpcity.su', 'ucam.xxx', 'adsession.com', 'qrlsx.com', 'pornfaze.com', 'theporndude.com', 'security.org'];
     var substringsToSearch = [...defaultSubstrings];
+
+    function isBlacklistedHost(url) {
+        return blacklistedHosts.some(host => url.includes(host));
+    }
 
     function extractAndCopyUrls() {
         var urls = [];
@@ -46,7 +51,10 @@
             var links = document.querySelectorAll('a');
 
             links.forEach(function (link) {
-                if (substringsToSearch.some(substring => link.href.includes(substring))) {
+                if (
+                    substringsToSearch.some(substring => link.href.includes(substring)) &&
+                    !isBlacklistedHost(link.href)
+                ) {
                     urls.push(link.href);
                 }
             });
