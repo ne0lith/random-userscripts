@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         URL Extractor
-// @version      1.2
+// @version      1.3
 // @description  Extracts URLs with specified substrings.
 // @author       neolith
 // @match        https://simpcity.su/threads/*
@@ -122,7 +122,7 @@
 
     document.body.appendChild(containerDiv);
 
-    box.addEventListener('click', function () {
+    exportButton.addEventListener('click', function () {
         substringsToSearch = inputBox.value.split(',').map(substring => substring.trim()).filter(Boolean);
         extractAndCopyUrls();
     });
