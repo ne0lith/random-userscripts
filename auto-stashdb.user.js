@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         AutoStashDB
-// @version      1.4
+// @version      1.4.1
 // @description  AutoStashDB Scene(s)
 // @author       You
-// @match        http://10.0.0.200:9999/*
+// @match        http://*:9999/*
 // @grant        none
 // @updateURL    https://github.com/ne0lith/random-userscripts/raw/main/auto-stashdb.user.js
 // @downloadURL  https://github.com/ne0lith/random-userscripts/raw/main/auto-stashdb.user.js
