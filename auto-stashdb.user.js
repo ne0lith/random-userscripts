@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         AutoStashDB
-// @version      1.3
+// @version      1.4
 // @description  AutoStashDB Scene(s)
 // @author       You
 // @match        http://10.0.0.200:9999/*
@@ -38,7 +38,7 @@
         }
         await sleep(2500); // Longer sleep for external server
 
-        // Find all buttons with the specific selector
+        // Find and select all + tags (studios, performers, tags, etc)
         var plusButtons = document.querySelectorAll('button.minimal.ml-2.btn.btn-primary svg[data-prefix="fas"][data-icon="plus"]');
         if (plusButtons.length > 0) {
             try {
@@ -49,12 +49,10 @@
                         button.closest('button').click();
                         console.log("Clicking + Button");
                         if (index < totalButtons - 1) {
-                            // For all buttons except the last one, use the standard sleep
-                            await sleep(2000);
+                            await sleep(2000); // For all buttons except the last one, use the standard sleep
                         } else {
-                            // For the last button, add an extra sleep
                             console.log("Waiting a bit longer for the last tag")
-                            await sleep(5000); // Extra sleep for the last button
+                            await sleep(5000); // For the last button, add an extra sleep
                         }
                     } catch (error) {
                         console.error('Error clicking + button:', error);
@@ -77,6 +75,8 @@
         console.log("Clicking Save")
     }
 
+    // TODO:
+    // We need to hide anything that may be under this button
     const button = document.createElement('button');
     button.textContent = 'Automate StashDB';
     button.style.position = 'fixed';
