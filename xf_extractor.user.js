@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         URL Extractor
-// @version      1.6
+// @version      1.7
 // @description  Extracts URLs with specified substrings.
 // @author       neolith
 // @match        https://simpcity.su/threads/*
@@ -13,6 +13,12 @@
     'use strict';
 
     var defaultSubstrings = ['bunkr', 'cyberfile', 'coomer', 'mega'];
+
+    var deepScrape = true;
+    if (deepScrape) {
+        defaultSubstrings = defaultSubstrings.concat(['gofile', 'pixeldrain', 'cyberdrop']);
+      }
+
     var blacklistedHosts = ['simpcity.su', 'ucam.xxx', 'adsession.com', 'qrlsx.com', 'pornfaze.com', 'theporndude.com', 'security.org'];
     var substringsToSearch = [...defaultSubstrings];
 
