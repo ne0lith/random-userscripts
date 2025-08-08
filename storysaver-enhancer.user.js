@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver) — Minimal
+// @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver) — Minimal (No Duplicates)
 // @namespace    your-namespace
-// @version      7.0
+// @version      7.1
 // @author       ne0liberal
-// @description  Extract CDN URLs on StorySaver and download with retries and real success tracking—without blocking site usage
+// @description  Extract CDN URLs on StorySaver and download with retries, real success tracking, and no duplicate downloads
 // @match        https://www.storysaver.net/*
 // @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
@@ -101,6 +101,19 @@
       }
     }
 
+    // NEW: dedupe URLs by asset key
+    function dedupeByKey(urls) {
+      const seen = new Set();
+      const out = [];
+      for (const u of urls) {
+        const k = keyFromUrl(u);
+        if (!k || seen.has(k)) continue;
+        seen.add(k);
+        out.push(u);
+      }
+      return out;
+    }
+
     function buildFilename(username, url, contentTypeHint) {
       let base = keyFromUrl(url).split('?')[0];
       const hasExt = /\.[a-z0-9]{2,5}$/i.test(base);
@@ -122,10 +135,9 @@
 
     async function downloadOne(url, filename, onProgress) {
       return new Promise((resolve, reject) => {
-        let usedGMDownload = false;
         if (typeof GM_download === 'function') {
           try {
-            const started = GM_download({
+            GM_download({
               url,
               name: filename,
               onprogress: (e) => onProgress && onProgress(e),
@@ -133,10 +145,11 @@
               onerror: (e) => reject(new Error((e && e.error) || 'GM_download error')),
               onload: () => resolve(true),
             });
-            if (started) usedGMDownload = true;
-          } catch (e) { /* fall through */ }
+            return; // IMPORTANT: don't run fallback
+          } catch (e) {
+            // Only fall back if GM_download actually throws
+          }
         }
-        if (usedGMDownload) return;
 
         GM_xmlhttpRequest({
           method: 'GET',
@@ -236,19 +249,8 @@
     `);
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
-
-    function loadPos() {
-      try {
-        const pos = JSON.parse(localStorage.getItem(POS_KEY));
-        if (!pos) return null;
-        const { left, top } = pos;
-        if (typeof left !== 'number' || typeof top !== 'number') return null;
-        return { left, top };
-      } catch { return null; }
-    }
-    function savePos(left, top) {
-      localStorage.setItem(POS_KEY, JSON.stringify({ left, top }));
-    }
+    function loadPos() { try { const pos = JSON.parse(localStorage.getItem(POS_KEY)); if (!pos) return null; const { left, top } = pos; if (typeof left !== 'number' || typeof top !== 'number') return null; return { left, top }; } catch { return null; } }
+    function savePos(left, top) { localStorage.setItem(POS_KEY, JSON.stringify({ left, top })); }
 
     function buildUI() {
       const wrap = document.createElement('div');
@@ -285,7 +287,7 @@
         card.style.position = 'fixed';
         const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
         const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-        const rect = { w: 260, h: 120 }; // rough default size
+        const rect = { w: 260, h: 120 };
         const left = clamp(saved.left, 0, vw - rect.w);
         const top  = clamp(saved.top,  0, vh - rect.h);
         card.style.left = left + 'px';
@@ -312,7 +314,7 @@
           ui.update('Scanning…');
 
           const username = getUsername();
-          const urls = collectUrls();
+          const urls = dedupeByKey(collectUrls()); // <-- de-dupe applied here
           ui.setFound(urls.length);
 
           if (urls.length === 0) {
