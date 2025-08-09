@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      8.0
+// @version      9.0
 // @author       ne0liberal
 // @description  Download IG stories via storysaver.
 // @match        https://www.storysaver.net/*
@@ -27,6 +27,8 @@
   }
 
   function init() {
+    try { document.documentElement.setAttribute('data-ssv-theme', 'dark'); } catch {}
+
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const jitter = (base) => base + Math.floor(Math.random() * base);
 
@@ -231,49 +233,94 @@
     const POS_KEY = 'ssv-card-pos';
 
     GM_addStyle(`
-      .ssv-helper { position: fixed; bottom: 20px; right: 20px; z-index: 2147483646; font: 12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; pointer-events: none; }
+      :root {
+        --background: 222.2 84% 4.9%;
+        --foreground: 210 40% 98%;
 
-      .ssv-card {
-        --ssv-bg: #0b5cff;
-        --ssv-fg: #fff;
+        --muted: 217.2 32.6% 17.5%;
+        --muted-foreground: 215 20.2% 65.1%;
 
-        position: fixed;
-        width: 440px;
-        max-width: min(92vw, 540px);
-        display: flex; flex-direction: column; box-sizing: border-box;
+        --card: 222.2 84% 5.8%;
+        --card-foreground: 210 40% 98%;
 
-        background: var(--ssv-bg) !important; color: var(--ssv-fg) !important;
-        border-radius: 12px !important;
-        box-shadow: 0 12px 28px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.2) !important;
-        padding: 12px !important; gap: 10px !important;
+        --popover: 222.2 84% 5.8%;
+        --popover-foreground: 210 40% 98%;
 
-        pointer-events: auto !important;
-        overflow: visible;
+        --border: 217.2 32.6% 17.5%;
+        --input: 217.2 32.6% 17.5%;
+
+        --primary: 210 40% 98%;
+        --primary-foreground: 222.2 47.4% 11.2%;
+
+        --secondary: 217.2 32.6% 17.5%;
+        --secondary-foreground: 210 40% 98%;
+
+        --accent: 217.2 32.6% 17.5%;
+        --accent-foreground: 210 40% 98%;
+
+        --ring: 215 20.2% 65.1%;
+        --focus: 222.2 84% 4.9%;
+
+        --radius: 10px;
+
+        --shadow-lg: 0 20px 40px rgba(0,0,0,.45), 0 8px 24px rgba(0,0,0,.35);
+        --shadow-md: 0 12px 24px rgba(0,0,0,.40), 0 4px 12px rgba(0,0,0,.30);
       }
 
-      .ssv-row { display: flex !important; gap: 8px !important; align-items: center !important; flex-wrap: nowrap !important; }
-      .ssv-header { align-items: center !important; justify-content: space-between !important; gap: 8px !important; }
+      .ssv-helper { position: fixed; bottom: 20px; right: 20px; z-index: 2147483646; font: 13px/1.35 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Apple Color Emoji","Segoe UI Emoji"; pointer-events: none; }
+
+      .ssv-card {
+        position: fixed;
+        width: 440px; max-width: min(92vw, 540px);
+        display: flex; flex-direction: column; box-sizing: border-box;
+        background: hsl(var(--card));
+        color: hsl(var(--card-foreground));
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-md);
+        padding: 12px; gap: 10px;
+        pointer-events: auto; overflow: visible;
+        backdrop-filter: saturate(1.2) blur(2px);
+      }
+
+      .ssv-row { display: flex; gap: 8px; align-items: center; flex-wrap: nowrap; }
+      .ssv-header { align-items: center; justify-content: space-between; gap: 8px; }
 
       .ssv-title {
-        font-weight: 800 !important; font-size: 14px !important; padding: 6px 10px !important;
-        border-radius: 8px !important; background: rgba(0,0,0,.18) !important; user-select: none !important; cursor: move;
+        font-weight: 700; font-size: 14px; padding: 6px 10px;
+        border-radius: calc(var(--radius) - 2px);
+        background: hsl(var(--muted));
+        color: hsl(var(--muted-foreground));
+        user-select: none; cursor: move;
       }
 
       .ssv-btn {
-        cursor: pointer !important; padding: 7px 9px !important;
-        border: 1px solid rgba(0,0,0,0.15) !important; border-radius: 8px !important;
-        background: #ffffff !important; color: #0b5cff !important;
-        font-weight: 800 !important; line-height: 1 !important; white-space: nowrap !important;
+        cursor: pointer; padding: 8px 10px;
+        border: 1px solid hsl(var(--border));
+        border-radius: calc(var(--radius) - 2px);
+        background: hsl(var(--secondary));
+        color: hsl(var(--secondary-foreground));
+        font-weight: 700; line-height: 1; white-space: nowrap;
+        transition: transform .02s ease, background .15s ease, border-color .15s ease, box-shadow .15s ease, opacity .15s ease;
       }
-      .ssv-btn:disabled { opacity: .55 !important; cursor: default !important; }
-      .ssv-btn.ghost { background: rgba(255,255,255,.14) !important; color: #fff !important; border-color: rgba(255,255,255,.2) !important; }
-      .ssv-btn:focus { outline: 2px solid rgba(255,255,255,0.9) !important; outline-offset: 1px !important; }
+      .ssv-btn:hover { background: hsl(var(--accent)); color: hsl(var(--accent-foreground)); }
+      .ssv-btn:active { transform: translateY(1px); }
+      .ssv-btn:disabled { opacity: .55; cursor: default; }
+      .ssv-btn.ghost { background: transparent; color: hsl(var(--foreground)); }
+      .ssv-btn:focus {
+        outline: none;
+        box-shadow: 0 0 0 3px hsl(var(--focus)), 0 0 0 5px hsla(var(--ring), .45);
+      }
+      .ssv-danger {
+        background: hsla(350 84% 40% / .12); color: hsl(350 84% 65%); border-color: hsla(350 84% 40% / .35);
+      }
 
-      .ssv-small { opacity: .95 !important; font-size: 12px !important; }
-      .ssv-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace !important; }
+      .ssv-small { opacity: .9; font-size: 12px; }
+      .ssv-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace; }
 
       .ssv-section {
-        background: rgba(0,0,0,.12); border-radius: 10px; padding: 10px;
+        background: hsl(var(--muted)); border: 1px solid hsl(var(--border));
+        border-radius: var(--radius); padding: 10px;
         display: flex; flex-direction: column; gap: 10px;
       }
 
@@ -281,13 +328,19 @@
 
       .ssv-badge {
         display: inline-flex; align-items: center; gap: 6px;
-        background: rgba(255,255,255,.15); border: 1px solid rgba(0,0,0,.15);
-        padding: 6px 8px; border-radius: 999px; font-weight: 800;
+        background: hsl(var(--secondary)); border: 1px solid hsl(var(--border));
+        padding: 6px 8px; border-radius: 999px; font-weight: 700;
       }
 
       .ssv-input {
-        width: 100%; border-radius: 8px; padding: 8px 10px; border: 0; outline: none; min-width: 0;
-        font-size: 12.5px; line-height: 1.2;
+        width: 100%; border-radius: calc(var(--radius) - 2px); padding: 9px 11px;
+        background: hsl(var(--background)); color: hsl(var(--foreground));
+        border: 1px solid hsl(var(--input)); outline: none; min-width: 0;
+        font-size: 13px; line-height: 1.2;
+      }
+      .ssv-input:focus {
+        border-color: hsla(var(--ring), .65);
+        box-shadow: 0 0 0 3px hsl(var(--focus)), 0 0 0 5px hsla(var(--ring), .45);
       }
 
       .ssv-actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
@@ -299,52 +352,77 @@
 
       .ssv-menu {
         position: absolute; top: calc(100% + 6px); left: 0;
-        min-width: 220px; max-width: 100%;
-        max-height: 260px; overflow: auto;
-        background: #ffffff; color: #0b2a6f;
-        border-radius: 10px; border: 1px solid rgba(0,0,0,.15);
-        box-shadow: 0 12px 28px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.2);
-        padding: 4px; display: none; z-index: 2147483647;
+        min-width: 220px; max-width: 100%; max-height: 260px; overflow: auto;
+        background: hsl(var(--popover)); color: hsl(var(--popover-foreground));
+        border-radius: var(--radius); border: 1px solid hsl(var(--border));
+        box-shadow: var(--shadow-lg); padding: 4px; display: none; z-index: 2147483647;
         pointer-events: auto;
+        scrollbar-color: hsla(var(--ring), .6) hsl(var(--muted));
+        scrollbar-width: thin;
       }
       .ssv-menu.open { display: block; }
       .ssv-menu.flip { top: auto; bottom: calc(100% + 6px); }
-      .ssv-menu .ssv-empty { padding: 8px; color: rgba(0,0,0,.55); }
+      .ssv-menu .ssv-empty { padding: 10px; color: hsl(var(--muted-foreground)); }
 
       .ssv-opt {
-        padding: 8px 10px; border-radius: 8px; font-weight: 700; color: #0b2a6f;
+        padding: 8px 10px; border-radius: calc(var(--radius) - 2px); font-weight: 600;
         overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
       }
-      .ssv-opt:hover { background: rgba(11,92,255,.08); cursor: pointer; }
+      .ssv-opt:hover { background: hsl(var(--accent)); cursor: pointer; }
 
       .ssv-backdrop {
         position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none;
-        z-index: 2147483647;
-        pointer-events: auto;
+        z-index: 2147483647; pointer-events: auto;
       }
       .ssv-backdrop.open { display: block; }
 
       .ssv-modal {
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
         width: min(600px, 92vw); max-height: min(68vh, 560px);
-        background: #fff; color: #0b2a6f; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,.28);
-        display: flex; flex-direction: column; overflow: hidden;
-        pointer-events: auto;
+        background: hsl(var(--popover)); color: hsl(var(--popover-foreground));
+        border: 1px solid hsl(var(--border)); border-radius: var(--radius); box-shadow: var(--shadow-lg);
+        display: flex; flex-direction: column; overflow: hidden; pointer-events: auto;
       }
       .ssv-modal-header {
         padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;
-        border-bottom: 1px solid rgba(0,0,0,.08); font-weight: 800;
+        border-bottom: 1px solid hsl(var(--border)); font-weight: 800;
       }
-      .ssv-modal-body { padding: 10px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+      .ssv-modal-body {
+        padding: 10px; overflow: auto; display: flex; flex-direction: column; gap: 6px;
+        scrollbar-color: hsla(var(--ring), .6) hsl(var(--muted));
+        scrollbar-width: thin;
+      }
+      .ssv-modal-footer {
+        padding: 10px;
+        display: flex;
+        gap: 8px;
+        justify-content: flex-end;
+        align-items: center;
+        border-top: 1px solid hsl(var(--border));
+      }
       .ssv-row-item {
         display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px;
-        padding: 8px 10px; border: 1px solid rgba(0,0,0,.08); border-radius: 8px;
+        padding: 10px; border: 1px solid hsl(var(--border)); border-radius: calc(var(--radius) - 2px);
+        background: hsl(var(--card));
       }
       .ssv-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
-      .ssv-modal-footer {
-        padding: 10px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid rgba(0,0,0,.08);
+
+      .ssv-menu::-webkit-scrollbar,
+      .ssv-modal-body::-webkit-scrollbar { width: 10px; height: 10px; }
+      .ssv-menu::-webkit-scrollbar-track,
+      .ssv-modal-body::-webkit-scrollbar-track { background: hsl(var(--muted)); border-radius: 999px; }
+      .ssv-menu::-webkit-scrollbar-thumb,
+      .ssv-modal-body::-webkit-scrollbar-thumb {
+        background: hsla(var(--ring), .55);
+        border: 2px solid hsl(var(--muted));
+        border-radius: 999px;
       }
-      .ssv-danger { background: #ffe5e8 !important; color: #b00020 !important; border-color: rgba(176,0,32,.25) !important; }
+      .ssv-menu::-webkit-scrollbar-thumb:hover,
+      .ssv-modal-body::-webkit-scrollbar-thumb:hover { background: hsla(var(--ring), .75); }
+
+      @media (prefers-reduced-motion: reduce) {
+        .ssv-btn, .ssv-card, .ssv-input { transition: none !important; }
+      }
     `);
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
@@ -519,22 +597,22 @@
             </div>
           </div>
 
-          <div class="ssv-section">
-            <input class="ssv-input" type="text" data-id="un-input" placeholder="Add or select a username (no auto-submit)" />
-            <div class="ssv-actions">
-              <div class="ssv-actions-left">
-                <button class="ssv-btn" data-action="un-add" title="Add to memory">Add</button>
-                <button class="ssv-btn" data-action="un-clear" title="Clear all">Clear</button>
+            <div class="ssv-section">
+              <input class="ssv-input" type="text" data-id="un-input" placeholder="Add or select a username (no auto-submit)" />
+              <div class="ssv-actions">
+                <div class="ssv-actions-left">
+                  <button class="ssv-btn" data-action="un-add" title="Add to memory">Add</button>
+                  <button class="ssv-btn" data-action="un-clear" title="Clear all">Clear</button>
+                </div>
+                <div class="ssv-actions-right">
+                  <button class="ssv-btn ghost" data-action="un-menu" data-id="un-saved-btn" aria-haspopup="listbox" aria-expanded="false">Saved (0) ▾</button>
+                  <div class="ssv-menu" data-id="un-menu" role="listbox" aria-label="Saved usernames"></div>
+                </div>
               </div>
-              <div class="ssv-actions-right">
-                <button class="ssv-btn ghost" data-action="un-menu" data-id="un-saved-btn" aria-haspopup="listbox" aria-expanded="false">Saved (0) ▾</button>
-                <div class="ssv-menu" data-id="un-menu" role="listbox" aria-label="Saved usernames"></div>
+              <div class="ssv-manage-row">
+                <button class="ssv-btn ghost" data-action="un-manage" title="Manage saved usernames">Manage saved usernames</button>
               </div>
             </div>
-            <div class="ssv-manage-row">
-              <button class="ssv-btn ghost" data-action="un-manage" title="Manage saved usernames">Manage saved usernames</button>
-            </div>
-          </div>
         </div>
       `;
       document.body.appendChild(wrap);
@@ -663,7 +741,7 @@
         }
 
         const opt = e.target.closest('.ssv-opt');
-        if (opt) {
+        if (opt && opt.hasAttribute('data-user')) {
           const u = opt.getAttribute('data-user');
           const inp = await waitForFormInput();
           if (!inp) return;
@@ -703,7 +781,9 @@
 
       document.addEventListener('click', (e) => {
         if (!menuOpen) return;
-        if (!card.contains(e.target)) closeMenu(menu);
+        if (!card.contains(e.target)) {
+          closeMenu(menu);
+        }
       });
       document.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
