@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      8.0
+// @version      8.1
 // @author       ne0liberal
-// @description  Extract CDN URLs on StorySaver and download with retries, real success tracking, and no duplicate downloads.
+// @description  Download IG stories via storysaver.
 // @match        https://www.storysaver.net/*
 // @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
@@ -211,6 +211,7 @@
             success = true;
             history[keyFromUrl(url)] = true;
             saveHistory(username, history);
+            addToCount(username, 1);
             ui.tick();
           } catch (e) {
             if (attempt >= maxAttempts) {
@@ -246,8 +247,8 @@
         box-shadow: 0 12px 28px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.2) !important;
         padding: 12px !important; gap: 10px !important;
 
-        pointer-events: auto !important;   /* re-enable for the card */
-        overflow: visible;                  /* let dropdown escape */
+        pointer-events: auto !important;
+        overflow: visible;
       }
 
       .ssv-row { display: flex !important; gap: 8px !important; align-items: center !important; flex-wrap: nowrap !important; }
@@ -286,18 +287,16 @@
 
       .ssv-input {
         width: 100%; border-radius: 8px; padding: 8px 10px; border: 0; outline: none; min-width: 0;
-        font-size: 12.5px; line-height: 1.2; /* slightly smaller */
+        font-size: 12.5px; line-height: 1.2;
       }
 
       .ssv-actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
       .ssv-actions-left { display: flex; gap: 8px; align-items: center; }
       .ssv-actions-right { display: flex; gap: 8px; align-items: center; position: relative; pointer-events: auto; }
 
-      /* Full-width manage button row (UNDER the row above) */
       .ssv-manage-row { display: flex; }
       .ssv-manage-row .ssv-btn { width: 100%; justify-content: center; }
 
-      /* Selection-only dropdown */
       .ssv-menu {
         position: absolute; top: calc(100% + 6px); left: 0;
         min-width: 220px; max-width: 100%;
@@ -306,7 +305,7 @@
         border-radius: 10px; border: 1px solid rgba(0,0,0,.15);
         box-shadow: 0 12px 28px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.2);
         padding: 4px; display: none; z-index: 2147483647;
-        pointer-events: auto; /* ensure clickable even under helper */
+        pointer-events: auto;
       }
       .ssv-menu.open { display: block; }
       .ssv-menu.flip { top: auto; bottom: calc(100% + 6px); }
@@ -318,11 +317,10 @@
       }
       .ssv-opt:hover { background: rgba(11,92,255,.08); cursor: pointer; }
 
-      /* Manage dialog */
       .ssv-backdrop {
         position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none;
-        z-index: 2147483647; /* above helper */
-        pointer-events: auto; /* critical: make it interactive */
+        z-index: 2147483647;
+        pointer-events: auto;
       }
       .ssv-backdrop.open { display: block; }
 
@@ -331,7 +329,7 @@
         width: min(480px, 92vw); max-height: min(68vh, 560px);
         background: #fff; color: #0b2a6f; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,.28);
         display: flex; flex-direction: column; overflow: hidden;
-        pointer-events: auto; /* be safe */
+        pointer-events: auto;
       }
       .ssv-modal-header {
         padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;
@@ -356,6 +354,26 @@
     const UN_KEY = 'ssvUsernames:v1';
     function loadUsernames() { try { return JSON.parse(GM_getValue(UN_KEY, '[]')) || []; } catch { return []; } }
     function saveUsernames(list) { try { GM_setValue(UN_KEY, JSON.stringify(list || [])); } catch {} }
+
+    const COUNT_KEY = 'ssvDownloadCounts:v1';
+    function loadCounts() { try { return JSON.parse(GM_getValue(COUNT_KEY, '{}')) || {}; } catch { return {}; } }
+    function saveCounts(obj) { try { GM_setValue(COUNT_KEY, JSON.stringify(obj || {})); } catch {} }
+    function getCount(u) { const c = loadCounts(); return c[(u || '').trim().toLowerCase()] | 0; }
+    function addToCount(u, delta = 1) {
+      u = (u || '').trim().toLowerCase();
+      if (!u) return;
+      const c = loadCounts();
+      c[u] = (c[u] | 0) + delta;
+      saveCounts(c);
+    }
+    function deleteCount(u) {
+      u = (u || '').trim().toLowerCase();
+      if (!u) return;
+      const c = loadCounts();
+      if (u in c) { delete c[u]; saveCounts(c); }
+    }
+    function clearAllCounts() { saveCounts({}); }
+
     function addUsername(u) {
       u = (u || '').trim().toLowerCase();
       if (!u) return;
@@ -365,8 +383,17 @@
       saveUsernames(list);
       renderSavedUI();
     }
-    function removeUsername(u) { saveUsernames(loadUsernames().filter(x => x !== u)); renderSavedUI(); }
-    function clearUsernames() { saveUsernames([]); renderSavedUI(); }
+    function removeUsername(u) {
+      const norm = (u || '').trim().toLowerCase();
+      saveUsernames(loadUsernames().filter(x => x !== norm));
+      deleteCount(norm);
+      renderSavedUI();
+    }
+    function clearUsernames() {
+      saveUsernames([]);
+      clearAllCounts();
+      renderSavedUI();
+    }
 
     function getFormInput() { return document.querySelector('input[name="text_username"]'); }
     function waitForFormInput(timeoutMs = 15000) {
@@ -451,16 +478,23 @@
       }
 
       if (manageList) {
-        if (!names.length) manageList.innerHTML = `<div class="ssv-empty">No saved usernames.</div>`;
-        else {
-          manageList.innerHTML = names.map(u => `
-            <div class="ssv-row-item">
-              <div class="ssv-row-name" title="${u}">${u}</div>
-              <div style="display:flex; gap:6px;">
-                <button class="ssv-btn ssv-danger" data-action="m-del" data-user="${u}">Delete</button>
+        if (!names.length) {
+          manageList.innerHTML = `<div class="ssv-empty">No saved usernames.</div>`;
+        } else {
+          manageList.innerHTML = names.map(u => {
+            const total = getCount(u);
+            return `
+              <div class="ssv-row-item">
+                <div class="ssv-row-name" title="${u}">${u}</div>
+                <div style="display:flex; gap:6px; align-items:center;">
+                  <span class="ssv-badge ssv-small" title="Total successful downloads for this username">
+                    Total: <span class="ssv-mono" style="margin-left:4px">${total}</span>
+                  </span>
+                  <button class="ssv-btn ssv-danger" data-action="m-del" data-user="${u}">Delete</button>
+                </div>
               </div>
-            </div>
-          `).join('');
+            `;
+          }).join('');
         }
       }
     }
@@ -724,6 +758,6 @@
     }
 
     const ui = buildUI();
-    console.log('StorySaver downloader — dropdown fixed, manage dialog interactive (moved outside helper + pointer-events)');
+    console.log('StorySaver downloader');
   }
 })();
