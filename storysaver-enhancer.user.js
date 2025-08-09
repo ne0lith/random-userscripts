@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      8.1
+// @version      8.0
 // @author       ne0liberal
 // @description  Download IG stories via storysaver.
 // @match        https://www.storysaver.net/*
@@ -326,7 +326,7 @@
 
       .ssv-modal {
         position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        width: min(480px, 92vw); max-height: min(68vh, 560px);
+        width: min(600px, 92vw); max-height: min(68vh, 560px);
         background: #fff; color: #0b2a6f; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,.28);
         display: flex; flex-direction: column; overflow: hidden;
         pointer-events: auto;
