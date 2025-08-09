@@ -1,9 +1,9 @@
 // ==UserScript==
-// @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver) — Minimal (No Duplicates)
+// @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      7.1
+// @version      8.0
 // @author       ne0liberal
-// @description  Extract CDN URLs on StorySaver and download with retries, real success tracking, and no duplicate downloads
+// @description  Extract CDN URLs on StorySaver and download with retries, real success tracking, and no duplicate downloads. Wide username input with Add/Clear. "Saved" dropdown is selection-only (click fills form). A separate full-width Manage button (under the row) opens a working dialog to delete one/all. Fixed-size card; dropdown never clipped; smaller input font.
 // @match        https://www.storysaver.net/*
 // @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
@@ -101,7 +101,6 @@
       }
     }
 
-    // NEW: dedupe URLs by asset key
     function dedupeByKey(urls) {
       const seen = new Set();
       const out = [];
@@ -145,10 +144,8 @@
               onerror: (e) => reject(new Error((e && e.error) || 'GM_download error')),
               onload: () => resolve(true),
             });
-            return; // IMPORTANT: don't run fallback
-          } catch (e) {
-            // Only fall back if GM_download actually throws
-          }
+            return;
+          } catch (e) {}
         }
 
         GM_xmlhttpRequest({
@@ -170,10 +167,7 @@
               a.style.display = 'none';
               document.body.appendChild(a);
               a.click();
-              setTimeout(() => {
-                URL.revokeObjectURL(a.href);
-                a.remove();
-              }, 2500);
+              setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 2500);
 
               resolve(true);
             } catch (e) { reject(e); }
@@ -236,45 +230,299 @@
     const POS_KEY = 'ssv-card-pos';
 
     GM_addStyle(`
-      .ssv-helper { position: fixed; bottom: 16px; right: 16px; z-index: 2147483646; font: 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; pointer-events: none; }
-      .ssv-card { background: #0b5cff !important; color: #fff !important; padding: 10px 12px !important; border-radius: 8px !important; box-shadow: 0 4px 14px rgba(0,0,0,0.25) !important; width: 260px !important; pointer-events: auto !important; box-sizing: border-box !important; }
-      .ssv-row { display: flex !important; gap: 6px !important; align-items: center !important; margin-top: 6px !important; flex-wrap: nowrap !important; justify-content: space-between !important; }
-      .ssv-left { display:flex; align-items:center; gap:6px; min-width:0; }
-      .ssv-right { display:flex; align-items:center; gap:6px; flex:0 0 auto; }
-      .ssv-btn { cursor: pointer !important; padding: 6px 8px !important; border: 1px solid rgba(0,0,0,0.15) !important; border-radius: 6px !important; background: #ffffff !important; color: #0b5cff !important; font-weight: 700 !important; line-height: 1 !important; white-space: nowrap !important; }
-      .ssv-btn:disabled { opacity: 0.55 !important; cursor: default !important; }
+      .ssv-helper { position: fixed; bottom: 20px; right: 20px; z-index: 2147483646; font: 12px/1.35 system-ui, -apple-system, Segoe UI, Roboto, sans-serif; pointer-events: none; }
+
+      .ssv-card {
+        --ssv-bg: #0b5cff;
+        --ssv-fg: #fff;
+
+        position: fixed;
+        width: 440px;
+        max-width: min(92vw, 540px);
+        display: flex; flex-direction: column; box-sizing: border-box;
+
+        background: var(--ssv-bg) !important; color: var(--ssv-fg) !important;
+        border-radius: 12px !important;
+        box-shadow: 0 12px 28px rgba(0,0,0,.28), 0 2px 6px rgba(0,0,0,.2) !important;
+        padding: 12px !important; gap: 10px !important;
+
+        pointer-events: auto !important;   /* re-enable for the card */
+        overflow: visible;                  /* let dropdown escape */
+      }
+
+      .ssv-row { display: flex !important; gap: 8px !important; align-items: center !important; flex-wrap: nowrap !important; }
+      .ssv-header { align-items: center !important; justify-content: space-between !important; gap: 8px !important; }
+
+      .ssv-title {
+        font-weight: 800 !important; font-size: 14px !important; padding: 6px 10px !important;
+        border-radius: 8px !important; background: rgba(0,0,0,.18) !important; user-select: none !important; cursor: move;
+      }
+
+      .ssv-btn {
+        cursor: pointer !important; padding: 7px 9px !important;
+        border: 1px solid rgba(0,0,0,0.15) !important; border-radius: 8px !important;
+        background: #ffffff !important; color: #0b5cff !important;
+        font-weight: 800 !important; line-height: 1 !important; white-space: nowrap !important;
+      }
+      .ssv-btn:disabled { opacity: .55 !important; cursor: default !important; }
+      .ssv-btn.ghost { background: rgba(255,255,255,.14) !important; color: #fff !important; border-color: rgba(255,255,255,.2) !important; }
       .ssv-btn:focus { outline: 2px solid rgba(255,255,255,0.9) !important; outline-offset: 1px !important; }
-      .ssv-pill { font-weight: 700 !important; }
-      .ssv-small { opacity: 0.95 !important; font-size: 11px !important; }
+
+      .ssv-small { opacity: .95 !important; font-size: 12px !important; }
+      .ssv-mono { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace !important; }
+
+      .ssv-section {
+        background: rgba(0,0,0,.12); border-radius: 10px; padding: 10px;
+        display: flex; flex-direction: column; gap: 10px;
+      }
+
+      .ssv-grid { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 8px; }
+
+      .ssv-badge {
+        display: inline-flex; align-items: center; gap: 6px;
+        background: rgba(255,255,255,.15); border: 1px solid rgba(0,0,0,.15);
+        padding: 6px 8px; border-radius: 999px; font-weight: 800;
+      }
+
+      .ssv-input {
+        width: 100%; border-radius: 8px; padding: 8px 10px; border: 0; outline: none; min-width: 0;
+        font-size: 12.5px; line-height: 1.2; /* slightly smaller */
+      }
+
+      .ssv-actions { display: flex; gap: 8px; align-items: center; justify-content: space-between; }
+      .ssv-actions-left { display: flex; gap: 8px; align-items: center; }
+      .ssv-actions-right { display: flex; gap: 8px; align-items: center; position: relative; pointer-events: auto; }
+
+      /* Full-width manage button row (UNDER the row above) */
+      .ssv-manage-row { display: flex; }
+      .ssv-manage-row .ssv-btn { width: 100%; justify-content: center; }
+
+      /* Selection-only dropdown */
+      .ssv-menu {
+        position: absolute; top: calc(100% + 6px); left: 0;
+        min-width: 220px; max-width: 100%;
+        max-height: 260px; overflow: auto;
+        background: #ffffff; color: #0b2a6f;
+        border-radius: 10px; border: 1px solid rgba(0,0,0,.15);
+        box-shadow: 0 12px 28px rgba(0,0,0,.18), 0 2px 6px rgba(0,0,0,.2);
+        padding: 4px; display: none; z-index: 2147483647;
+        pointer-events: auto; /* ensure clickable even under helper */
+      }
+      .ssv-menu.open { display: block; }
+      .ssv-menu.flip { top: auto; bottom: calc(100% + 6px); }
+      .ssv-menu .ssv-empty { padding: 8px; color: rgba(0,0,0,.55); }
+
+      .ssv-opt {
+        padding: 8px 10px; border-radius: 8px; font-weight: 700; color: #0b2a6f;
+        overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+      }
+      .ssv-opt:hover { background: rgba(11,92,255,.08); cursor: pointer; }
+
+      /* Manage dialog */
+      .ssv-backdrop {
+        position: fixed; inset: 0; background: rgba(0,0,0,.35); display: none;
+        z-index: 2147483647; /* above helper */
+        pointer-events: auto; /* critical: make it interactive */
+      }
+      .ssv-backdrop.open { display: block; }
+
+      .ssv-modal {
+        position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: min(480px, 92vw); max-height: min(68vh, 560px);
+        background: #fff; color: #0b2a6f; border-radius: 12px; box-shadow: 0 20px 40px rgba(0,0,0,.28);
+        display: flex; flex-direction: column; overflow: hidden;
+        pointer-events: auto; /* be safe */
+      }
+      .ssv-modal-header {
+        padding: 12px 14px; display: flex; justify-content: space-between; align-items: center;
+        border-bottom: 1px solid rgba(0,0,0,.08); font-weight: 800;
+      }
+      .ssv-modal-body { padding: 10px; overflow: auto; display: flex; flex-direction: column; gap: 6px; }
+      .ssv-row-item {
+        display: grid; grid-template-columns: 1fr auto; align-items: center; gap: 8px;
+        padding: 8px 10px; border: 1px solid rgba(0,0,0,.08); border-radius: 8px;
+      }
+      .ssv-row-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 700; }
+      .ssv-modal-footer {
+        padding: 10px; display: flex; gap: 8px; justify-content: flex-end; border-top: 1px solid rgba(0,0,0,.08);
+      }
+      .ssv-danger { background: #ffe5e8 !important; color: #b00020 !important; border-color: rgba(176,0,32,.25) !important; }
     `);
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
     function loadPos() { try { const pos = JSON.parse(localStorage.getItem(POS_KEY)); if (!pos) return null; const { left, top } = pos; if (typeof left !== 'number' || typeof top !== 'number') return null; return { left, top }; } catch { return null; } }
     function savePos(left, top) { localStorage.setItem(POS_KEY, JSON.stringify({ left, top })); }
 
+    const UN_KEY = 'ssvUsernames:v1';
+    function loadUsernames() { try { return JSON.parse(GM_getValue(UN_KEY, '[]')) || []; } catch { return []; } }
+    function saveUsernames(list) { try { GM_setValue(UN_KEY, JSON.stringify(list || [])); } catch {} }
+    function addUsername(u) {
+      u = (u || '').trim().toLowerCase();
+      if (!u) return;
+      const list = loadUsernames().filter(x => x !== u);
+      list.unshift(u);
+      if (list.length > 200) list.length = 200;
+      saveUsernames(list);
+      renderSavedUI();
+    }
+    function removeUsername(u) { saveUsernames(loadUsernames().filter(x => x !== u)); renderSavedUI(); }
+    function clearUsernames() { saveUsernames([]); renderSavedUI(); }
+
+    function getFormInput() { return document.querySelector('input[name="text_username"]'); }
+    function waitForFormInput(timeoutMs = 15000) {
+      return new Promise((resolve) => {
+        const el = getFormInput();
+        if (el) return resolve(el);
+        const obs = new MutationObserver(() => {
+          const e = getFormInput();
+          if (e) { obs.disconnect(); resolve(e); }
+        });
+        obs.observe(document.documentElement, { childList: true, subtree: true });
+        setTimeout(() => { obs.disconnect(); resolve(null); }, timeoutMs);
+      });
+    }
+
+    (async () => {
+      const inp = await waitForFormInput();
+      if (!inp) return;
+      const form = inp.form || inp.closest('form');
+      if (!form) return;
+      form.addEventListener('submit', () => {
+        const val = (inp.value || '').trim();
+        if (val) addUsername(val);
+      }, { capture: true });
+    })();
+    (async () => {
+      const inp = await waitForFormInput();
+      if (!inp) return;
+      inp.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          const val = (inp.value || '').trim();
+          if (val) addUsername(val);
+        }
+      }, { capture: true });
+    })();
+
+    let menuOpen = false;
+    function closeMenu(menu) { if (!menu) return; menu.classList.remove('open', 'flip'); menuOpen = false; }
+    function positionMenuRelativeToButton(btn, menu) {
+      if (!btn || !menu) return;
+      const btnRect = btn.getBoundingClientRect();
+      const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+      menu.style.minWidth = btnRect.width + 'px';
+      const spaceBelow = vh - btnRect.bottom - 10;
+      const spaceAbove = btnRect.top - 10;
+      const targetMax = 260;
+      if (spaceBelow < 160 && spaceAbove > spaceBelow) {
+        menu.classList.add('flip');
+        menu.style.maxHeight = Math.min(targetMax, spaceAbove) + 'px';
+      } else {
+        menu.classList.remove('flip');
+        menu.style.maxHeight = Math.min(targetMax, spaceBelow) + 'px';
+      }
+    }
+    function toggleMenu(btn, menu) {
+      if (!menu) return;
+      if (menu.classList.contains('open')) {
+        closeMenu(menu);
+        btn && btn.setAttribute('aria-expanded', 'false');
+      } else {
+        positionMenuRelativeToButton(btn, menu);
+        menu.classList.add('open');
+        btn && btn.setAttribute('aria-expanded', 'true');
+        menuOpen = true;
+      }
+    }
+
+    function renderSavedUI() {
+      const card = document.querySelector('.ssv-card');
+      if (!card) return;
+
+      const names = loadUsernames();
+      const savedBtn = card.querySelector('[data-id="un-saved-btn"]');
+      const menu = card.querySelector('[data-id="un-menu"]');
+      const manageList = document.querySelector('.ssv-modal-body');
+
+      if (savedBtn) savedBtn.textContent = `Saved (${names.length}) ▾`;
+
+      if (menu) {
+        if (!names.length) menu.innerHTML = `<div class="ssv-empty">No saved usernames yet.</div>`;
+        else menu.innerHTML = names.map(u => `<div class="ssv-opt" data-user="${u}" title="${u}">${u}</div>`).join('');
+      }
+
+      if (manageList) {
+        if (!names.length) manageList.innerHTML = `<div class="ssv-empty">No saved usernames.</div>`;
+        else {
+          manageList.innerHTML = names.map(u => `
+            <div class="ssv-row-item">
+              <div class="ssv-row-name" title="${u}">${u}</div>
+              <div style="display:flex; gap:6px;">
+                <button class="ssv-btn ssv-danger" data-action="m-del" data-user="${u}">Delete</button>
+              </div>
+            </div>
+          `).join('');
+        }
+      }
+    }
+
     function buildUI() {
       const wrap = document.createElement('div');
       wrap.className = 'ssv-helper';
       wrap.innerHTML = `
         <div class="ssv-card" role="region" aria-label="StorySaver Downloader" tabindex="-1">
-          <div class="ssv-row">
-            <div class="ssv-left">
-              <div class="ssv-pill ssv-handle">StorySaver Downloader</div>
-            </div>
-            <div class="ssv-right">
+          <div class="ssv-row ssv-header">
+            <div class="ssv-title ssv-handle">StorySaver Downloader</div>
+            <div>
               <button class="ssv-btn" data-action="start" title="Scan & Download">Start</button>
             </div>
           </div>
-          <div class="ssv-row">
-            <span class="ssv-small" data-id="status">Idle</span>
+
+          <div class="ssv-section">
+            <div class="ssv-grid">
+              <div class="ssv-small" data-id="status">Idle</div>
+              <div class="ssv-badge ssv-small">Found: <span class="ssv-mono" data-id="found" style="margin-left:4px">0</span></div>
+              <div class="ssv-badge ssv-small">Pending: <span class="ssv-mono" data-id="pending" style="margin-left:4px">0</span></div>
+            </div>
           </div>
-          <div class="ssv-row">
-            <span class="ssv-small">Found: <span class="ssv-small" data-id="found">0</span></span>
-            <span class="ssv-small">Pending: <span class="ssv-small" data-id="pending">0</span></span>
+
+          <div class="ssv-section">
+            <input class="ssv-input" type="text" data-id="un-input" placeholder="Add or select a username (no auto-submit)" />
+            <div class="ssv-actions">
+              <div class="ssv-actions-left">
+                <button class="ssv-btn" data-action="un-add" title="Add to memory">Add</button>
+                <button class="ssv-btn" data-action="un-clear" title="Clear all">Clear</button>
+              </div>
+              <div class="ssv-actions-right">
+                <button class="ssv-btn ghost" data-action="un-menu" data-id="un-saved-btn" aria-haspopup="listbox" aria-expanded="false">Saved (0) ▾</button>
+                <div class="ssv-menu" data-id="un-menu" role="listbox" aria-label="Saved usernames"></div>
+              </div>
+            </div>
+            <div class="ssv-manage-row">
+              <button class="ssv-btn ghost" data-action="un-manage" title="Manage saved usernames">Manage saved usernames</button>
+            </div>
           </div>
         </div>
       `;
       document.body.appendChild(wrap);
+
+      const backdrop = document.createElement('div');
+      backdrop.className = 'ssv-backdrop';
+      backdrop.setAttribute('data-id', 'manage-backdrop');
+      backdrop.setAttribute('aria-hidden', 'true');
+      backdrop.innerHTML = `
+        <div class="ssv-modal" role="dialog" aria-modal="true" aria-label="Manage saved usernames">
+          <div class="ssv-modal-header">
+            <span>Manage saved usernames</span>
+            <button class="ssv-btn" data-action="m-close">Close</button>
+          </div>
+          <div class="ssv-modal-body"><!-- rows injected here --></div>
+          <div class="ssv-modal-footer">
+            <button class="ssv-btn ssv-danger" data-action="m-clear-all">Delete all</button>
+            <button class="ssv-btn" data-action="m-close">Done</button>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(backdrop);
 
       const card = wrap.querySelector('.ssv-card');
       const statusEl = wrap.querySelector('[data-id="status"]');
@@ -282,18 +530,37 @@
       const pendingEl = wrap.querySelector('[data-id="pending"]');
       const startBtn = wrap.querySelector('[data-action="start"]');
 
+      const menu = card.querySelector('[data-id="un-menu"]');
+      const savedBtn = card.querySelector('[data-id="un-saved-btn"]');
+      const modal = backdrop.querySelector('.ssv-modal');
+
+      function openManage() {
+        renderSavedUI();
+        backdrop.classList.add('open');
+        backdrop.setAttribute('aria-hidden', 'false');
+        closeMenu(menu);
+      }
+      function closeManage() {
+        backdrop.classList.remove('open');
+        backdrop.setAttribute('aria-hidden', 'true');
+      }
+
+      renderSavedUI();
+
       const saved = loadPos();
       if (saved) {
         card.style.position = 'fixed';
-        const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
-        const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
-        const rect = { w: 260, h: 120 };
-        const left = clamp(saved.left, 0, vw - rect.w);
-        const top  = clamp(saved.top,  0, vh - rect.h);
-        card.style.left = left + 'px';
-        card.style.top  = top + 'px';
-        card.style.right = 'auto';
-        card.style.bottom = 'auto';
+        requestAnimationFrame(() => {
+          const vw = Math.max(document.documentElement.clientWidth, window.innerWidth || 0);
+          const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+          const r = card.getBoundingClientRect();
+          const left = clamp(saved.left, 0, vw - r.width);
+          const top  = clamp(saved.top,  0, vh - r.height);
+          card.style.left = left + 'px';
+          card.style.top  = top + 'px';
+          card.style.right = 'auto';
+          card.style.bottom = 'auto';
+        });
       }
 
       const ui = {
@@ -314,7 +581,7 @@
           ui.update('Scanning…');
 
           const username = getUsername();
-          const urls = dedupeByKey(collectUrls()); // <-- de-dupe applied here
+          const urls = dedupeByKey(collectUrls());
           ui.setFound(urls.length);
 
           if (urls.length === 0) {
@@ -328,6 +595,86 @@
           ui.update('Error. See console.');
           console.warn('[StorySaver DL] Start error:', e);
           startBtn.disabled = false;
+        }
+      });
+
+      card.addEventListener('click', async (e) => {
+        const btn = e.target.closest('button');
+
+        if (btn) {
+          const act = btn.getAttribute('data-action');
+
+          if (act === 'un-add') {
+            const input = card.querySelector('[data-id="un-input"]');
+            addUsername(input.value);
+            input.value = '';
+            return;
+          }
+
+          if (act === 'un-clear') {
+            if (confirm('Clear all saved usernames?')) clearUsernames();
+            return;
+          }
+
+          if (act === 'un-menu') {
+            positionMenuRelativeToButton(btn, menu);
+            toggleMenu(btn, menu);
+            return;
+          }
+
+          if (act === 'un-manage') {
+            openManage();
+            return;
+          }
+        }
+
+        const opt = e.target.closest('.ssv-opt');
+        if (opt) {
+          const u = opt.getAttribute('data-user');
+          const inp = await waitForFormInput();
+          if (!inp) return;
+          inp.value = u;
+          inp.dispatchEvent(new Event('input', { bubbles: true }));
+          inp.dispatchEvent(new Event('change', { bubbles: true }));
+          inp.focus(); inp.scrollIntoView({ block: 'center', behavior: 'smooth' });
+          closeMenu(menu);
+          return;
+        }
+      });
+
+      backdrop.addEventListener('click', (e) => {
+        if (!modal.contains(e.target)) {
+          closeManage();
+          return;
+        }
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const act = btn.getAttribute('data-action');
+        if (act === 'm-close') {
+          closeManage();
+        } else if (act === 'm-clear-all') {
+          if (confirm('Delete ALL saved usernames?')) clearUsernames();
+        } else if (act === 'm-del') {
+          const u = btn.getAttribute('data-user');
+          removeUsername(u);
+        }
+      });
+
+      const reflowMenu = () => {
+        if (!menuOpen) return;
+        positionMenuRelativeToButton(savedBtn, menu);
+      };
+      window.addEventListener('resize', reflowMenu, { passive: true });
+      window.addEventListener('scroll', reflowMenu, { passive: true });
+
+      document.addEventListener('click', (e) => {
+        if (!menuOpen) return;
+        if (!card.contains(e.target)) closeMenu(menu);
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          closeMenu(menu);
+          closeManage();
         }
       });
 
@@ -358,7 +705,7 @@
           const left = clamp(rect.left, 0, vw - rect.width);
           const top  = clamp(rect.top,  0, vh - rect.height);
           card.style.left = left + 'px';
-          card.style.top  = top + 'px';
+          card.style.top = top + 'px';
           savePos(left, top);
         });
         window.addEventListener('resize', () => {
@@ -368,7 +715,7 @@
           const left = clamp(rect.left, 0, vw - rect.width);
           const top  = clamp(rect.top,  0, vh - rect.height);
           card.style.left = left + 'px';
-          card.style.top  = top + 'px';
+          card.style.top = top + 'px';
           savePos(left, top);
         });
       })();
@@ -377,6 +724,6 @@
     }
 
     const ui = buildUI();
-    console.log('StorySaver downloader loaded');
+    console.log('StorySaver downloader — dropdown fixed, manage dialog interactive (moved outside helper + pointer-events)');
   }
 })();
