@@ -3,7 +3,7 @@
 // @namespace    your-namespace
 // @version      8.0
 // @author       ne0liberal
-// @description  Extract CDN URLs on StorySaver and download with retries, real success tracking, and no duplicate downloads. Wide username input with Add/Clear. "Saved" dropdown is selection-only (click fills form). A separate full-width Manage button (under the row) opens a working dialog to delete one/all. Fixed-size card; dropdown never clipped; smaller input font.
+// @description  Extract CDN URLs on StorySaver and download with retries, real success tracking, and no duplicate downloads.
 // @match        https://www.storysaver.net/*
 // @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
