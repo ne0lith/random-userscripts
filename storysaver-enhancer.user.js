@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      9.0
+// @version      9.1
 // @author       ne0liberal
 // @description  Download IG stories via storysaver.
 // @match        https://www.storysaver.net/*
@@ -207,13 +207,14 @@
 
         while (!success && attempt < maxAttempts) {
           attempt++;
-          ui.update(`Downloading ${i + 1}/${toDownload.length} (try ${attempt})`);
+          ui.update(`@${username} — Downloading ${i + 1}/${toDownload.length} (try ${attempt})`);
           try {
             await downloadOne(url, fname, () => {});
             success = true;
             history[keyFromUrl(url)] = true;
             saveHistory(username, history);
             addToCount(username, 1);
+            setLast(username, Date.now());
             ui.tick();
           } catch (e) {
             if (attempt >= maxAttempts) {
@@ -227,7 +228,7 @@
         await sleep(jitter(120));
       }
 
-      ui.done();
+      ui.done(`@${username} — Done`);
     }
 
     const POS_KEY = 'ssv-card-pos';
@@ -452,6 +453,42 @@
     }
     function clearAllCounts() { saveCounts({}); }
 
+    const LAST_KEY = 'ssvLastDownloadedAt:v1';
+    function loadLasts() { try { return JSON.parse(GM_getValue(LAST_KEY, '{}')) || {}; } catch { return {}; } }
+    function saveLasts(obj) { try { GM_setValue(LAST_KEY, JSON.stringify(obj || {})); } catch {} }
+    function getLast(u) {
+      u = (u || '').trim().toLowerCase();
+      const m = loadLasts()[u];
+      return (typeof m === 'number' && isFinite(m)) ? m : null;
+    }
+    function setLast(u, epochMs) {
+      u = (u || '').trim().toLowerCase();
+      if (!u) return;
+      const m = loadLasts();
+      m[u] = +epochMs;
+      saveLasts(m);
+    }
+    function deleteLast(u) {
+      u = (u || '').trim().toLowerCase();
+      if (!u) return;
+      const m = loadLasts();
+      if (u in m) { delete m[u]; saveLasts(m); }
+    }
+    function clearAllLasts() { saveLasts({}); }
+
+    function formatLast(epochMs) {
+      if (!epochMs) return '—';
+      const d = new Date(epochMs);
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, '0');
+      const dd = String(d.getDate()).padStart(2, '0');
+      let h = d.getHours();
+      const m = String(d.getMinutes()).padStart(2, '0');
+      const ampm = h >= 12 ? 'PM' : 'AM';
+      h = h % 12; if (h === 0) h = 12;
+      return `${yyyy}-${mm}-${dd} ${h}:${m} ${ampm}`;
+    }
+
     function addUsername(u) {
       u = (u || '').trim().toLowerCase();
       if (!u) return;
@@ -465,11 +502,13 @@
       const norm = (u || '').trim().toLowerCase();
       saveUsernames(loadUsernames().filter(x => x !== norm));
       deleteCount(norm);
+      deleteLast(norm);
       renderSavedUI();
     }
     function clearUsernames() {
       saveUsernames([]);
       clearAllCounts();
+      clearAllLasts();
       renderSavedUI();
     }
 
@@ -561,12 +600,16 @@
         } else {
           manageList.innerHTML = names.map(u => {
             const total = getCount(u);
+            const last = formatLast(getLast(u));
             return `
               <div class="ssv-row-item">
                 <div class="ssv-row-name" title="${u}">${u}</div>
                 <div style="display:flex; gap:6px; align-items:center;">
                   <span class="ssv-badge ssv-small" title="Total successful downloads for this username">
                     Total: <span class="ssv-mono" style="margin-left:4px">${total}</span>
+                  </span>
+                  <span class="ssv-badge ssv-small" title="Last time a download completed for this username">
+                    Last: <span class="ssv-mono" style="margin-left:4px">${last}</span>
                   </span>
                   <button class="ssv-btn ssv-danger" data-action="m-del" data-user="${u}">Delete</button>
                 </div>
@@ -684,20 +727,21 @@
           pendingEl.textContent = String(n);
         },
         warn(msg) { console.warn('[StorySaver DL]', msg); },
-        done() { this.update('Done'); startBtn.disabled = false; }
+        done(msg) { this.update(msg || 'Done'); startBtn.disabled = false; }
       };
 
       startBtn.addEventListener('click', async () => {
         try {
           startBtn.disabled = true;
-          ui.update('Scanning…');
 
           const username = getUsername();
+          ui.update(`@${username} — Scanning…`);
+
           const urls = dedupeByKey(collectUrls());
           ui.setFound(urls.length);
 
           if (urls.length === 0) {
-            ui.update('No CDN URLs found.');
+            ui.update(`@${username} — No CDN URLs found.`);
             startBtn.disabled = false;
             return;
           }
