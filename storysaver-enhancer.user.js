@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      9.3
+// @version      10.0
 // @author       ne0liberal
-// @description  Download IG stories via storysaver.
+// @description  Download IG stories via storysaver + cohesive dark site skin matching the card.
 // @match        https://www.storysaver.net/*
 // @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
@@ -27,7 +27,18 @@
   }
 
   function init() {
-    try { document.documentElement.setAttribute('data-ssv-theme', 'dark'); } catch {}
+    function GM_GetValueSafe(key, def) {
+      try { return GM_getValue(key, def); } catch { return def; }
+    }
+    function GM_SetValueSafe(key, val) {
+      try { GM_setValue(key, val); } catch {}
+    }
+
+    const storedTheme = (GM_GetValueSafe('ssvSiteTheme', 'dark') || 'dark').toLowerCase();
+    const theme = (storedTheme === 'light' ? 'light' : 'dark');
+    document.documentElement.setAttribute('data-ssv-theme', theme);
+
+    document.body.classList.add('ssv-skin');
 
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
     const jitter = (base) => base + Math.floor(Math.random() * base);
@@ -233,6 +244,7 @@
 
     const POS_KEY = 'ssv-card-pos';
 
+    // ===== Card styles =====
     GM_addStyle(`
       :root {
         --background: 222.2 84% 4.9%;
@@ -352,7 +364,7 @@
         min-width: 220px; max-width: 100%; max-height: 260px; overflow: auto;
         background: hsl(var(--popover)); color: hsl(var(--popover-foreground));
         border-radius: var(--radius); border: 1px solid hsl(var(--border));
-        box-shadow: var(--shadow-lg); padding: 4px; display: none; z-index: 2147483647;
+        box-shadow: var(--shadow-md); padding: 4px; display: none; z-index: 2147483647;
         pointer-events: auto;
         scrollbar-color: hsla(var(--ring), .6) hsl(var(--muted));
         scrollbar-width: thin;
@@ -456,6 +468,258 @@
         color: hsl(var(--muted-foreground));
         font-weight: 600;
       }
+
+      /* Compact checkbox switch (very discreet) */
+      .ssv-switch {
+        display: inline-flex;
+        align-items: center;
+        gap: 0;
+        padding: 0;
+        margin-right: 6px;
+        opacity: .65;
+      }
+      .ssv-switch:hover { opacity: 1; }
+      .ssv-switch input[type="checkbox"] {
+        width: 14px; height: 14px;
+        margin: 0;
+        accent-color: hsl(var(--accent));
+        cursor: pointer;
+      }
+    `);
+
+    // ===== SITE-WIDE DARK THEME OVERRIDES (strictly scoped to body.ssv-skin containers) =====
+    GM_addStyle(`
+      html[data-ssv-theme="dark"] {
+        --site-bg: hsl(var(--background));
+        --site-fg: hsl(var(--foreground));
+        --site-muted: hsl(var(--muted));
+        --site-muted-fg: hsl(var(--muted-foreground));
+        --site-card: hsl(var(--card));
+        --site-card-fg: hsl(var(--card-foreground));
+        --site-border: hsl(var(--border));
+        --site-input: hsl(var(--input));
+        --site-secondary: hsl(var(--secondary));
+        --site-secondary-fg: hsl(var(--secondary-foreground));
+        --site-accent: hsl(var(--accent));
+        --site-accent-fg: hsl(var(--accent-foreground));
+        --site-ring: hsla(var(--ring), 0.65);
+      }
+
+      /* Page body */
+      html[data-ssv-theme="dark"] body.ssv-skin {
+        background: var(--site-bg) !important;
+        background-image: none !important;
+        color: var(--site-fg) !important;
+        text-shadow: none !important;
+      }
+
+      /* Global links (outside our card) */
+      html[data-ssv-theme="dark"] body.ssv-skin a {
+        color: var(--site-fg) !important;
+        border-bottom: 1px dotted hsla(215, 20%, 65%, 0.45) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin a:hover { border-bottom-color: transparent !important; }
+
+      /* Headings & emphasis */
+      html[data-ssv-theme="dark"] body.ssv-skin h1,
+      html[data-ssv-theme="dark"] body.ssv-skin h2,
+      html[data-ssv-theme="dark"] body.ssv-skin h3,
+      html[data-ssv-theme="dark"] body.ssv-skin h4,
+      html[data-ssv-theme="dark"] body.ssv-skin h5,
+      html[data-ssv-theme="dark"] body.ssv-skin h6,
+      html[data-ssv-theme="dark"] body.ssv-skin b,
+      html[data-ssv-theme="dark"] body.ssv-skin strong {
+        color: var(--site-fg) !important;
+      }
+
+      /* Primary surfaces */
+      html[data-ssv-theme="dark"] body.ssv-skin #main,
+      html[data-ssv-theme="dark"] body.ssv-skin .box,
+      html[data-ssv-theme="dark"] body.ssv-skin .spotlight .image,
+      html[data-ssv-theme="dark"] body.ssv-skin #footer {
+        background: var(--site-card) !important;
+        color: var(--site-card-fg) !important;
+        border: 1px solid var(--site-border) !important;
+        box-shadow: var(--shadow-md) !important;
+      }
+
+      /* NAV: default and sticky variant */
+      html[data-ssv-theme="dark"] body.ssv-skin #nav,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav.alt {
+        background: var(--site-card) !important;
+        color: var(--site-card-fg) !important;
+        border: 1px solid var(--site-border) !important;
+        box-shadow: var(--shadow-md) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #nav {
+        border-radius: var(--radius) var(--radius) 0 0 !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #nav ul li a {
+        color: var(--site-card-fg) !important;
+        box-shadow: inset 0 0 0 1px var(--site-border) !important;
+        border-radius: 8px !important;
+        background: transparent !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #nav ul li a:hover {
+        background: var(--site-muted) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #nav ul li a.active {
+        background: var(--site-accent) !important;
+        color: var(--site-accent-fg) !important;
+        box-shadow: none !important;
+      }
+
+      /* Section tops */
+      html[data-ssv-theme="dark"] body.ssv-skin #main > .main {
+        border-top: 1px solid var(--site-border) !important;
+      }
+
+      /* HR / code / pre */
+      html[data-ssv-theme="dark"] body.ssv-skin hr { border-bottom: 1px solid var(--site-border) !important; }
+      html[data-ssv-theme="dark"] body.ssv-skin code {
+        background: var(--site-muted) !important;
+        border: 1px solid var(--site-border) !important;
+        color: var(--site-fg) !important;
+        border-radius: 8px !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin pre code {
+        background: var(--site-card) !important;
+      }
+
+      /* Buttons (scoped to #main and #nav to avoid our card) */
+      html[data-ssv-theme="dark"] body.ssv-skin #main .button,
+      html[data-ssv-theme="dark"] body.ssv-skin #main button,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav .button,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav button,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="submit"],
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="reset"],
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="button"] {
+        background: var(--site-secondary) !important;
+        color: var(--site-secondary-fg) !important;
+        border: 1px solid var(--site-border) !important;
+        box-shadow: none !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main .button:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #main button:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav .button:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav button:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="submit"]:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="reset"]:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="button"]:hover {
+        background: var(--site-accent) !important;
+        color: var(--site-accent-fg) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main .button.primary,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav .button.primary,
+      html[data-ssv-theme="dark"] body.ssv-skin #main button.primary,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav button.primary,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="submit"].primary {
+        background: var(--site-accent) !important;
+        color: var(--site-accent-fg) !important;
+        border-color: var(--site-border) !important;
+      }
+
+      /* Forms (scoped to #main only) */
+      html[data-ssv-theme="dark"] body.ssv-skin #main label {
+        color: var(--site-fg) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="text"],
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="password"],
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="email"],
+      html[data-ssv-theme="dark"] body.ssv-skin #main select,
+      html[data-ssv-theme="dark"] body.ssv-skin #main textarea {
+        background: var(--site-bg) !important;
+        color: var(--site-fg) !important;
+        border: 1px solid var(--site-input) !important;
+        outline: none !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="text"]:focus,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="password"]:focus,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="email"]:focus,
+      html[data-ssv-theme="dark"] body.ssv-skin #main select:focus,
+      html[data-ssv-theme="dark"] body.ssv-skin #main textarea:focus {
+        border-color: var(--site-ring) !important;
+        box-shadow: 0 0 0 3px hsl(var(--focus)), 0 0 0 5px var(--site-ring) !important;
+      }
+
+      /* Select arrow */
+      html[data-ssv-theme="dark"] body.ssv-skin #main select {
+        background-image:
+          url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cpath d='M9.4,12.3l10.4,10.4l10.4-10.4c.2-.2.5-.4.9-.4.3,0,.6.1.9.4l3.3,3.3c.2.2.4.5.4.9 0,.4-.1.6-.4.9L20.7,31.9c-.2.2-.5.4-.9.4-.3,0-.6-.1-.9-.4L4.3,17.3c-.2-.2-.4-.5-.4-.9 0-.4.1-.6.4-.9l3.3-3.3c.2-.2.5-.4.9-.4s.9.1.9.4z' fill='rgba(255,255,255,.55)'/%3E%3C/svg%3E")
+          !important;
+        background-color: var(--site-bg) !important;
+      }
+
+      /* Placeholder */
+      html[data-ssv-theme="dark"] body.ssv-skin #main ::placeholder {
+        color: var(--site-muted-fg) !important;
+        opacity: 1 !important;
+      }
+
+      /* Checks / radios */
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="checkbox"]+label:before,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="radio"]+label:before {
+        background: var(--site-bg) !important;
+        border-color: var(--site-input) !important;
+        color: var(--site-fg) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="checkbox"]:checked+label:before,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="radio"]:checked+label:before {
+        background: var(--site-accent) !important;
+        border-color: var(--site-accent) !important;
+        color: var(--site-accent-fg) !important;
+      }
+
+      /* Tables */
+      html[data-ssv-theme="dark"] body.ssv-skin #main table {
+        color: var(--site-fg) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main table thead,
+      html[data-ssv-theme="dark"] body.ssv-skin #main table tfoot {
+        border-color: var(--site-border) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main table tbody tr {
+        border-color: var(--site-border) !important;
+        background: transparent !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main table tbody tr:nth-child(2n+1) {
+        background: rgba(255,255,255,0.035) !important;
+      }
+
+      /* Statistics & story tiles */
+      html[data-ssv-theme="dark"] body.ssv-skin .statistics li {
+        background: var(--site-muted) !important;
+        color: var(--site-fg) !important;
+        border: 1px solid var(--site-border) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin .stylestory,
+      html[data-ssv-theme="dark"] body.ssv-skin .stylefirst,
+      html[data-ssv-theme="dark"] body.ssv-skin .stylehighlights {
+        background: var(--site-card) !important;
+        border: 1px solid var(--site-border) !important;
+      }
+
+      /* Story text colors specifically requested */
+      html[data-ssv-theme="dark"] body.ssv-skin .storycount {
+        color: var(--site-fg) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin .storyname {
+        color: var(--site-fg) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin .storytime {
+        color: var(--site-muted-fg) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin .response ul li p {
+        color: var(--site-fg) !important;
+      }
+
+      /* Keep their grecaptcha hidden */
+      html[data-ssv-theme="dark"] body.ssv-skin .grecaptcha-badge { display: none !important; }
+    `);
+
+    GM_addStyle(`
+      .ssv-card .ssv-btn { border: 1px solid hsl(var(--border)) !important; }
+      .ssv-card .ssv-input { border: 1px solid hsl(var(--input)) !important; }
     `);
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
@@ -463,12 +727,12 @@
     function savePos(left, top) { localStorage.setItem(POS_KEY, JSON.stringify({ left, top })); }
 
     const UN_KEY = 'ssvUsernames:v1';
-    function loadUsernames() { try { return JSON.parse(GM_getValue(UN_KEY, '[]')) || []; } catch { return []; } }
-    function saveUsernames(list) { try { GM_setValue(UN_KEY, JSON.stringify(list || [])); } catch {} }
+    function loadUsernames() { try { return JSON.parse(GM_GetValueSafe(UN_KEY, '[]')) || []; } catch { return []; } }
+    function saveUsernames(list) { try { GM_SetValueSafe(UN_KEY, JSON.stringify(list || [])); } catch {} }
 
     const COUNT_KEY = 'ssvDownloadCounts:v1';
-    function loadCounts() { try { return JSON.parse(GM_getValue(COUNT_KEY, '{}')) || {}; } catch { return {}; } }
-    function saveCounts(obj) { try { GM_setValue(COUNT_KEY, JSON.stringify(obj || {})); } catch {} }
+    function loadCounts() { try { return JSON.parse(GM_GetValueSafe(COUNT_KEY, '{}')) || {}; } catch { return {}; } }
+    function saveCounts(obj) { try { GM_SetValueSafe(COUNT_KEY, JSON.stringify(obj || {})); } catch {} }
     function getCount(u) { const c = loadCounts(); return c[(u || '').trim().toLowerCase()] | 0; }
     function addToCount(u, delta = 1) {
       u = (u || '').trim().toLowerCase();
@@ -486,8 +750,8 @@
     function clearAllCounts() { saveCounts({}); }
 
     const LAST_KEY = 'ssvLastDownloadedAt:v1';
-    function loadLasts() { try { return JSON.parse(GM_getValue(LAST_KEY, '{}')) || {}; } catch { return {}; } }
-    function saveLasts(obj) { try { GM_setValue(LAST_KEY, JSON.stringify(obj || {})); } catch {} }
+    function loadLasts() { try { return JSON.parse(GM_GetValueSafe(LAST_KEY, '{}')) || {}; } catch { return {}; } }
+    function saveLasts(obj) { try { GM_SetValueSafe(LAST_KEY, JSON.stringify(obj || {})); } catch {} }
     function getLast(u) {
       u = (u || '').trim().toLowerCase();
       const m = loadLasts()[u];
@@ -558,7 +822,6 @@
       });
     }
 
-    // Wire username capture on submit/enter (existing)
     (async () => {
       const inp = await waitForFormInput();
       if (!inp) return;
@@ -661,6 +924,9 @@
           <div class="ssv-row ssv-header">
             <div class="ssv-title ssv-handle">StorySaver Downloader</div>
             <div>
+              <label class="ssv-switch" title="Toggle site dark mode" aria-label="Dark mode">
+                <input type="checkbox" data-action="site-dark-toggle" />
+              </label>
               <button class="ssv-btn" data-action="start" title="Scan & Download">Start</button>
             </div>
           </div>
@@ -673,22 +939,22 @@
             </div>
           </div>
 
-            <div class="ssv-section">
-              <input class="ssv-input" type="text" data-id="un-input" placeholder="Add or select a username (no auto-submit)" />
-              <div class="ssv-actions">
-                <div class="ssv-actions-left">
-                  <button class="ssv-btn" data-action="un-add" title="Add to memory">Add</button>
-                  <button class="ssv-btn" data-action="un-clear" title="Clear all">Clear</button>
-                </div>
-                <div class="ssv-actions-right">
-                  <button class="ssv-btn ghost" data-action="un-menu" data-id="un-saved-btn" aria-haspopup="listbox" aria-expanded="false">Saved (0) ▾</button>
-                  <div class="ssv-menu" data-id="un-menu" role="listbox" aria-label="Saved usernames"></div>
-                </div>
+          <div class="ssv-section">
+            <input class="ssv-input" type="text" data-id="un-input" placeholder="Add or select a username (no auto-submit)" />
+            <div class="ssv-actions">
+              <div class="ssv-actions-left">
+                <button class="ssv-btn" data-action="un-add" title="Add to memory">Add</button>
+                <button class="ssv-btn" data-action="un-clear" title="Clear all">Clear</button>
               </div>
-              <div class="ssv-manage-row">
-                <button class="ssv-btn ghost" data-action="un-manage" title="Manage saved usernames">Manage saved usernames</button>
+              <div class="ssv-actions-right">
+                <button class="ssv-btn ghost" data-action="un-menu" data-id="un-saved-btn" aria-haspopup="listbox" aria-expanded="false">Saved (0) ▾</button>
+                <div class="ssv-menu" data-id="un-menu" role="listbox" aria-label="Saved usernames"></div>
               </div>
             </div>
+            <div class="ssv-manage-row">
+              <button class="ssv-btn ghost" data-action="un-manage" title="Manage saved usernames">Manage saved usernames</button>
+            </div>
+          </div>
         </div>
       `;
       document.body.appendChild(wrap);
@@ -717,10 +983,20 @@
       const foundEl = wrap.querySelector('[data-id="found"]');
       const pendingEl = wrap.querySelector('[data-id="pending"]');
       const startBtn = wrap.querySelector('[data-action="start"]');
+      const darkToggle = wrap.querySelector('input[data-action="site-dark-toggle"]');
 
       const menu = card.querySelector('[data-id="un-menu"]');
       const savedBtn = card.querySelector('[data-id="un-saved-btn"]');
       const modal = backdrop.querySelector('.ssv-modal');
+
+      const initialTheme = (document.documentElement.getAttribute('data-ssv-theme') || 'dark').toLowerCase();
+      darkToggle.checked = (initialTheme === 'dark');
+
+      darkToggle.addEventListener('change', () => {
+        const mode = darkToggle.checked ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-ssv-theme', mode);
+        GM_SetValueSafe('ssvSiteTheme', mode);
+      });
 
       function openManage() {
         renderSavedUI();
@@ -930,7 +1206,6 @@
       let open = false;
       let items = [];
       let activeIndex = -1;
-      let lastRect = null;
 
       function getNames() {
         return loadUsernames();
@@ -939,7 +1214,6 @@
       function positionMenu() {
         if (!open) return;
         const r = inp.getBoundingClientRect();
-        lastRect = r;
         menu.style.left = r.left + 'px';
         menu.style.top = (r.bottom + 4) + 'px';
         menu.style.width = r.width + 'px';
@@ -977,7 +1251,6 @@
         }
         const q = (query || '').toLowerCase();
         menu.innerHTML = list.map((u, i) => {
-          // simple bolding of the matching part
           const idx = u.indexOf(q);
           let label = u;
           if (q && idx >= 0) {
@@ -1093,7 +1366,6 @@
             complete(items[activeIndex]);
             close();
           }
-          // allow tab behavior
         } else if (e.key === 'Escape') {
           close();
           e.preventDefault();
