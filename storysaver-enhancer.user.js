@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      10.0
+// @version      10.1
 // @author       ne0liberal
 // @description  Download IG stories via storysaver + cohesive dark site skin matching the card.
 // @match        https://www.storysaver.net/*
@@ -37,7 +37,6 @@
     const storedTheme = (GM_GetValueSafe('ssvSiteTheme', 'dark') || 'dark').toLowerCase();
     const theme = (storedTheme === 'light' ? 'light' : 'dark');
     document.documentElement.setAttribute('data-ssv-theme', theme);
-
     document.body.classList.add('ssv-skin');
 
     const sleep = (ms) => new Promise(r => setTimeout(r, ms));
@@ -699,19 +698,11 @@
         border: 1px solid var(--site-border) !important;
       }
 
-      /* Story text colors specifically requested */
-      html[data-ssv-theme="dark"] body.ssv-skin .storycount {
-        color: var(--site-fg) !important;
-      }
-      html[data-ssv-theme="dark"] body.ssv-skin .storyname {
-        color: var(--site-fg) !important;
-      }
-      html[data-ssv-theme="dark"] body.ssv-skin .storytime {
-        color: var(--site-muted-fg) !important;
-      }
-      html[data-ssv-theme="dark"] body.ssv-skin .response ul li p {
-        color: var(--site-fg) !important;
-      }
+      /* Story text colors */
+      html[data-ssv-theme="dark"] body.ssv-skin .storycount { color: var(--site-fg) !important; }
+      html[data-ssv-theme="dark"] body.ssv-skin .storyname  { color: var(--site-fg) !important; }
+      html[data-ssv-theme="dark"] body.ssv-skin .storytime  { color: var(--site-muted-fg) !important; }
+      html[data-ssv-theme="dark"] body.ssv-skin .response ul li p { color: var(--site-fg) !important; }
 
       /* Keep their grecaptcha hidden */
       html[data-ssv-theme="dark"] body.ssv-skin .grecaptcha-badge { display: none !important; }
@@ -720,6 +711,33 @@
     GM_addStyle(`
       .ssv-card .ssv-btn { border: 1px solid hsl(var(--border)) !important; }
       .ssv-card .ssv-input { border: 1px solid hsl(var(--input)) !important; }
+    `);
+
+    GM_addStyle(`
+      html[data-ssv-theme="dark"] body.ssv-skin #main .button.primary,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav .button.primary,
+      html[data-ssv-theme="dark"] body.ssv-skin #main button.primary,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav button.primary,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="submit"].primary {
+        background: hsl(212 92% 52%) !important;
+        color: #fff !important;
+        border-color: hsl(212 92% 42%) !important;
+        box-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 6px 12px rgba(0,0,0,.45) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main .button.primary:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav .button.primary:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #main button.primary:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav button.primary:hover,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="submit"].primary:hover {
+        background: hsl(212 92% 58%) !important;
+      }
+      html[data-ssv-theme="dark"] body.ssv-skin #main .button.primary:active,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav .button.primary:active,
+      html[data-ssv-theme="dark"] body.ssv-skin #main button.primary:active,
+      html[data-ssv-theme="dark"] body.ssv-skin #nav button.primary:active,
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="submit"].primary:active {
+        background: hsl(212 92% 46%) !important;
+      }
     `);
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
@@ -779,7 +797,7 @@
       const mm = String(d.getMonth() + 1).padStart(2, '0');
       const dd = String(d.getDate()).padStart(2, '0');
       let h = d.getHours();
-      const m = String(d.getMinutes()).padStart(2, '0');
+      const m = String(d.getMinutes() + '').padStart(2, '0');
       const ampm = h >= 12 ? 'PM' : 'AM';
       h = h % 12; if (h === 0) h = 12;
       return `${yyyy}-${mm}-${dd} ${h}:${m} ${ampm}`;
@@ -1293,8 +1311,11 @@
         activeIndex = Math.max(0, Math.min(max, i));
         const els = menu.querySelectorAll('.ssv-ac-item');
         els.forEach((el, idx) => {
-          if (idx === activeIndex) el.classList.add('active');
-          else el.classList.remove('active');
+          if (idx === activeIndex) el.addClass && el.addClass('active');
+          if (el.classList) {
+            if (idx === activeIndex) el.classList.add('active');
+            else el.classList.remove('active');
+          }
         });
         inp.setAttribute('aria-activedescendant', `ssv-ac-${activeIndex}`);
         const activeEl = menu.querySelector(`#ssv-ac-${activeIndex}`);
