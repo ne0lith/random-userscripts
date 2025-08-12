@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      9.1
+// @version      9.3
 // @author       ne0liberal
 // @description  Download IG stories via storysaver.
 // @match        https://www.storysaver.net/*
@@ -308,10 +308,6 @@
       .ssv-btn:active { transform: translateY(1px); }
       .ssv-btn:disabled { opacity: .55; cursor: default; }
       .ssv-btn.ghost { background: transparent; color: hsl(var(--foreground)); }
-      .ssv-btn:focus {
-        outline: none;
-        box-shadow: 0 0 0 3px hsl(var(--focus)), 0 0 0 5px hsla(var(--ring), .45);
-      }
       .ssv-danger {
         background: hsla(350 84% 40% / .12); color: hsl(350 84% 65%); border-color: hsla(350 84% 40% / .35);
       }
@@ -424,6 +420,42 @@
       @media (prefers-reduced-motion: reduce) {
         .ssv-btn, .ssv-card, .ssv-input { transition: none !important; }
       }
+
+      /* === AUTOCOMPLETE styles === */
+      .ssv-ac {
+        position: fixed;
+        z-index: 2147483646;
+        display: none;
+        background: hsl(var(--popover));
+        color: hsl(var(--popover-foreground));
+        border: 1px solid hsl(var(--border));
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-lg);
+        padding: 4px;
+        max-height: 260px;
+        overflow: auto;
+        scrollbar-color: hsla(var(--ring), .6) hsl(var(--muted));
+        scrollbar-width: thin;
+      }
+      .ssv-ac.open { display: block; }
+      .ssv-ac-item {
+        padding: 8px 10px;
+        border-radius: calc(var(--radius) - 2px);
+        font-weight: 700;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        cursor: pointer;
+      }
+      .ssv-ac-item:hover, .ssv-ac-item.active {
+        background: hsl(var(--accent));
+        color: hsl(var(--accent-foreground));
+      }
+      .ssv-ac-empty {
+        padding: 8px 10px;
+        color: hsl(var(--muted-foreground));
+        font-weight: 600;
+      }
     `);
 
     function clamp(n, min, max) { return Math.max(min, Math.min(max, n)); }
@@ -526,6 +558,7 @@
       });
     }
 
+    // Wire username capture on submit/enter (existing)
     (async () => {
       const inp = await waitForFormInput();
       if (!inp) return;
@@ -883,5 +916,219 @@
 
     const ui = buildUI();
     console.log('StorySaver downloader');
+
+    (async function setupAutocomplete() {
+      const inp = await waitForFormInput(20000);
+      if (!inp) return;
+
+      const menu = document.createElement('div');
+      menu.className = 'ssv-ac';
+      menu.setAttribute('role', 'listbox');
+      menu.setAttribute('aria-label', 'Saved usernames suggestions');
+      document.body.appendChild(menu);
+
+      let open = false;
+      let items = [];
+      let activeIndex = -1;
+      let lastRect = null;
+
+      function getNames() {
+        return loadUsernames();
+      }
+
+      function positionMenu() {
+        if (!open) return;
+        const r = inp.getBoundingClientRect();
+        lastRect = r;
+        menu.style.left = r.left + 'px';
+        menu.style.top = (r.bottom + 4) + 'px';
+        menu.style.width = r.width + 'px';
+        const vh = Math.max(document.documentElement.clientHeight, window.innerHeight || 0);
+        const spaceBelow = vh - r.bottom - 10;
+        const spaceAbove = r.top - 10;
+        menu.style.maxHeight = (spaceBelow < 160 && spaceAbove > spaceBelow) ? Math.min(260, spaceAbove) + 'px' : '260px';
+        if (spaceBelow < 160 && spaceAbove > spaceBelow) {
+          menu.style.top = (r.top - menu.offsetHeight - 4) + 'px';
+        }
+      }
+
+      function close() {
+        open = false;
+        activeIndex = -1;
+        menu.classList.remove('open');
+        menu.innerHTML = '';
+        inp.removeAttribute('aria-activedescendant');
+      }
+
+      function ensureOpen() {
+        if (!open) {
+          open = true;
+          menu.classList.add('open');
+          positionMenu();
+        }
+      }
+
+      function render(list, query) {
+        items = list;
+        activeIndex = list.length ? 0 : -1;
+        if (!list.length) {
+          menu.innerHTML = `<div class="ssv-ac-empty">No matches</div>`;
+          return;
+        }
+        const q = (query || '').toLowerCase();
+        menu.innerHTML = list.map((u, i) => {
+          // simple bolding of the matching part
+          const idx = u.indexOf(q);
+          let label = u;
+          if (q && idx >= 0) {
+            label = u.slice(0, idx) + '<strong>' + u.slice(idx, idx + q.length) + '</strong>' + u.slice(idx + q.length);
+          }
+          return `<div class="ssv-ac-item${i===0?' active':''}" role="option" id="ssv-ac-${i}" data-user="${u}" title="${u}">${label}</div>`;
+        }).join('');
+        if (activeIndex >= 0) {
+          inp.setAttribute('aria-activedescendant', `ssv-ac-${activeIndex}`);
+        }
+      }
+
+      function filter(query) {
+        const names = getNames();
+        if (!names.length) return [];
+        const q = (query || '').toLowerCase();
+        if (!q) return names.slice(0, 10);
+        const starts = [];
+        const contains = [];
+        for (const n of names) {
+          const idx = n.indexOf(q);
+          if (idx === 0) starts.push(n);
+          else if (idx > 0) contains.push(n);
+        }
+        const out = [...starts, ...contains];
+        return out.slice(0, 10);
+      }
+
+      function complete(value) {
+        inp.value = value;
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+        inp.focus();
+        inp.setSelectionRange(value.length, value.length);
+      }
+
+      function setActive(i) {
+        if (!items.length) return;
+        const max = items.length - 1;
+        activeIndex = Math.max(0, Math.min(max, i));
+        const els = menu.querySelectorAll('.ssv-ac-item');
+        els.forEach((el, idx) => {
+          if (idx === activeIndex) el.classList.add('active');
+          else el.classList.remove('active');
+        });
+        inp.setAttribute('aria-activedescendant', `ssv-ac-${activeIndex}`);
+        const activeEl = menu.querySelector(`#ssv-ac-${activeIndex}`);
+        if (activeEl) {
+          const mbr = menu.getBoundingClientRect();
+          const abr = activeEl.getBoundingClientRect();
+          if (abr.top < mbr.top) menu.scrollTop -= (mbr.top - abr.top);
+          else if (abr.bottom > mbr.bottom) menu.scrollTop += (abr.bottom - mbr.bottom);
+        }
+      }
+
+      inp.setAttribute('autocomplete', 'off');
+      inp.setAttribute('role', 'combobox');
+      inp.setAttribute('aria-autocomplete', 'list');
+      inp.setAttribute('aria-expanded', 'false');
+
+      const update = () => {
+        const q = inp.value.trim();
+        const list = filter(q);
+        if (!list.length) {
+          close();
+          inp.setAttribute('aria-expanded', 'false');
+          return;
+        }
+        ensureOpen();
+        render(list, q.toLowerCase());
+        positionMenu();
+        inp.setAttribute('aria-expanded', 'true');
+      };
+
+      let t = 0;
+      const debouncedUpdate = () => {
+        clearTimeout(t);
+        t = setTimeout(update, 60);
+      };
+
+      inp.addEventListener('input', debouncedUpdate, { passive: true });
+      inp.addEventListener('focus', () => {
+        debouncedUpdate();
+      }, { passive: true });
+
+      inp.addEventListener('blur', () => {
+        setTimeout(() => {
+          if (!menu.matches(':hover')) close();
+        }, 120);
+      }, { passive: true });
+
+      inp.addEventListener('keydown', (e) => {
+        if (!open) {
+          if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && getNames().length) {
+            ensureOpen(); update();
+            e.preventDefault();
+          }
+          return;
+        }
+        if (e.key === 'ArrowDown') {
+          setActive(activeIndex + 1);
+          e.preventDefault();
+        } else if (e.key === 'ArrowUp') {
+          setActive(activeIndex - 1);
+          e.preventDefault();
+        } else if (e.key === 'Enter') {
+          if (activeIndex >= 0 && items[activeIndex]) {
+            complete(items[activeIndex]);
+            close();
+          }
+        } else if (e.key === 'Tab') {
+          if (activeIndex >= 0 && items[activeIndex]) {
+            complete(items[activeIndex]);
+            close();
+          }
+          // allow tab behavior
+        } else if (e.key === 'Escape') {
+          close();
+          e.preventDefault();
+        }
+      });
+
+      menu.addEventListener('mousemove', (e) => {
+        const el = e.target.closest('.ssv-ac-item');
+        if (!el) return;
+        const idx = Number(el.id.replace('ssv-ac-', ''));
+        if (Number.isFinite(idx)) setActive(idx);
+      }, { passive: true });
+
+      menu.addEventListener('mousedown', (e) => {
+        e.preventDefault();
+      });
+
+      menu.addEventListener('click', (e) => {
+        const el = e.target.closest('.ssv-ac-item');
+        if (!el) return;
+        const u = el.getAttribute('data-user');
+        if (u) {
+          complete(u);
+          close();
+        }
+      });
+
+      const reflow = () => {
+        if (!open) return;
+        positionMenu();
+      };
+      window.addEventListener('scroll', reflow, { passive: true });
+      window.addEventListener('resize', reflow, { passive: true });
+      new ResizeObserver(reflow).observe(document.documentElement);
+    })();
+
   }
 })();
