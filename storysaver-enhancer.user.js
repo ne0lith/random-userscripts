@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      10.1
+// @version      10.2
 // @author       ne0liberal
 // @description  Download IG stories via storysaver
 // @match        https://www.storysaver.net/*
@@ -17,6 +17,22 @@
 
 (function () {
   'use strict';
+
+  // --- Deep-link support: https://www.storysaver.net/?username=WHATEVER[&go=1]
+  (function bootstrapDeepLink() {
+    try {
+      const u = new URL(location.href);
+      const raw = (u.searchParams.get('user') || u.searchParams.get('username') || '').trim();
+      const autoGo = (u.searchParams.get('go') || '').trim(); // "1" to auto-submit
+      if (raw) {
+        const cleaned = raw.replace(/^@+/, '').trim();
+        sessionStorage.setItem('ssv:prefill', cleaned);
+        if (autoGo) sessionStorage.setItem('ssv:auto', '1');
+      }
+    } catch (e) {
+      console.warn('[StorySaver DL] deep-link bootstrap error:', e);
+    }
+  })();
 
   function safe(fn) { try { return fn(); } catch (e) { console.warn('[StorySaver DL] init error:', e); } }
 
@@ -644,7 +660,7 @@
       /* Select arrow */
       html[data-ssv-theme="dark"] body.ssv-skin #main select {
         background-image:
-          url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cpath d='M9.4,12.3l10.4,10.4l10.4-10.4c.2-.2.5-.4.9-.4.3,0,.6.1.9.4l3.3,3.3c.2.2.4.5.4.9 0,.4-.1.6-.4.9L20.7,31.9c-.2.2-.5.4-.9.4-.3,0-.6-.1-.9-.4L4.3,17.3c-.2-.2-.4-.5-.4-.9 0-.4.1-.6.4-.9l3.3-3.3c.2-.2.5-.4.9-.4s.9.1.9.4z' fill='rgba(255,255,255,.55)'/%3E%3C/svg%3E")
+          url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cpath d='M9.4,12.3l10.4,10.4l10.4-10.4c.2-.2.5-.4.9-.4.3,0,.6.1.9.4l3.3,3.3c.2.2.4.5.4.9 0,.4-.1,.6-.4,.9L20.7,31.9c-.2.2-.5.4-.9.4-.3,0-.6-.1-.9-.4L4.3,17.3c-.2-.2-.4-.5-.4-.9 0-.4.1-.6.4-.9l3.3-3.3c.2-.2.5-.4.9-.4s.9.1.9.4z' fill='rgba(255,255,255,.55)'/%3E%3C/svg%3E")
           !important;
         background-color: var(--site-bg) !important;
       }
@@ -663,7 +679,7 @@
         color: var(--site-fg) !important;
       }
       html[data-ssv-theme="dark"] body.ssv-skin #main input[type="checkbox"]:checked+label:before,
-      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="radio"]:checked+label:before {
+      html[data-ssv-theme="dark"] body.ssv-skin #main input[type="radio"]+label:before {
         background: var(--site-accent) !important;
         border-color: var(--site-accent) !important;
         color: var(--site-accent-fg) !important;
@@ -1209,6 +1225,40 @@
     }
 
     const ui = buildUI();
+
+    // --- Prefill username from deep-link (sessionStorage), optionally auto-submit
+    (async function prefillFromDeepLink() {
+      try {
+        const name = (sessionStorage.getItem('ssv:prefill') || '').trim();
+        const auto = sessionStorage.getItem('ssv:auto');
+        if (!name) return;
+
+        // one-shot
+        sessionStorage.removeItem('ssv:prefill');
+        sessionStorage.removeItem('ssv:auto');
+
+        const inp = await waitForFormInput(15000);
+        if (!inp) return;
+
+        inp.value = name;
+        inp.dispatchEvent(new Event('input', { bubbles: true }));
+        inp.dispatchEvent(new Event('change', { bubbles: true }));
+        inp.focus();
+
+        addUsername(name);
+
+        if (auto === '1') {
+          const form = inp.form || inp.closest('form');
+          if (form) {
+            if (typeof form.requestSubmit === 'function') form.requestSubmit();
+            else form.submit();
+          }
+        }
+      } catch (e) {
+        console.warn('[StorySaver DL] prefill error:', e);
+      }
+    })();
+
     console.log('StorySaver downloader');
 
     (async function setupAutocomplete() {
@@ -1311,7 +1361,6 @@
         activeIndex = Math.max(0, Math.min(max, i));
         const els = menu.querySelectorAll('.ssv-ac-item');
         els.forEach((el, idx) => {
-          if (idx === activeIndex) el.addClass && el.addClass('active');
           if (el.classList) {
             if (idx === activeIndex) el.classList.add('active');
             else el.classList.remove('active');
