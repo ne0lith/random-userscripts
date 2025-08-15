@@ -1,9 +1,9 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      10.3
+// @version      11.0
 // @author       ne0liberal
-// @description  Download IG stories via storysaver
+// @description  Download IG stories via storysaver — fixed filename logic to use real CDN filename
 // @match        https://www.storysaver.net/*
 // @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
@@ -20,12 +20,11 @@
 (function () {
   'use strict';
 
-  // --- Deep-link support: https://www.storysaver.net/?username=WHATEVER[&go=1]
   (function bootstrapDeepLink() {
     try {
       const u = new URL(location.href);
       const raw = (u.searchParams.get('user') || u.searchParams.get('username') || '').trim();
-      const autoGo = (u.searchParams.get('go') || '').trim(); // "1" to auto-submit
+      const autoGo = (u.searchParams.get('go') || '').trim();
       if (raw) {
         const cleaned = raw.replace(/^@+/, '').trim();
         sessionStorage.setItem('ssv:prefill', cleaned);
@@ -57,7 +56,6 @@
     document.documentElement.setAttribute('data-ssv-theme', theme);
     document.body.classList.add('ssv-skin');
 
-    // Inject external CSS from @resource
     try {
       const css = (typeof GM_getResourceText === 'function') ? GM_getResourceText('ssvCSS') : '';
       if (css) GM_addStyle(css);
@@ -127,11 +125,26 @@
       return [...set];
     }
 
+    function filenameFromPath(url) {
+      try {
+        const u = new URL(url);
+        let last = u.pathname.split('/').filter(Boolean).pop() || '';
+        try { last = decodeURIComponent(last); } catch {}
+        return /\.[a-z0-9]{2,5}$/i.test(last) ? last : '';
+      } catch {
+        return '';
+      }
+    }
+
     function keyFromUrl(url) {
       try {
+        const pathFile = filenameFromPath(url);
+        if (pathFile) return pathFile;
+
         const u = new URL(url);
         const igk = u.searchParams.get('ig_cache_key');
         if (igk) return igk;
+
         const last = u.pathname.split('/').filter(Boolean).pop() || 'file';
         return last + (u.searchParams.get('efg') ? ('_' + u.searchParams.get('efg')) : '');
       } catch {
@@ -739,14 +752,12 @@
 
     const ui = buildUI();
 
-    // --- Prefill username from deep-link (sessionStorage), optionally auto-submit
     (async function prefillFromDeepLink() {
       try {
         const name = (sessionStorage.getItem('ssv:prefill') || '').trim();
         const auto = sessionStorage.getItem('ssv:auto');
         if (!name) return;
 
-        // one-shot
         sessionStorage.removeItem('ssv:prefill');
         sessionStorage.removeItem('ssv:auto');
 
