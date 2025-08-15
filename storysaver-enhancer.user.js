@@ -3,7 +3,7 @@
 // @namespace    your-namespace
 // @version      11.0
 // @author       ne0liberal
-// @description  Download IG stories via storysaver — fixed filename logic to use real CDN filename
+// @description  Download IG stories via storysaver
 // @match        https://www.storysaver.net/*
 // @updateURL    https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
 // @downloadURL  https://github.com/n30liberal/random-userscripts/raw/main/storysaver-enhancer.user.js
