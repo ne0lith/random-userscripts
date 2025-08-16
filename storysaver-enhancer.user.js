@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Instagram CDN URL Extractor & Safe Downloader (StorySaver)
 // @namespace    your-namespace
-// @version      11.0
+// @version      11.1
 // @author       ne0liberal
 // @description  Download IG stories via storysaver
 // @match        https://www.storysaver.net/*
@@ -500,17 +500,6 @@
           </div>
 
           <div class="ssv-section">
-            <input class="ssv-input" type="text" data-id="un-input" placeholder="Add or select a username (no auto-submit)" />
-            <div class="ssv-actions">
-              <div class="ssv-actions-left">
-                <button class="ssv-btn" data-action="un-add" title="Add to memory">Add</button>
-                <button class="ssv-btn" data-action="un-clear" title="Clear all">Clear</button>
-              </div>
-              <div class="ssv-actions-right">
-                <button class="ssv-btn ghost" data-action="un-menu" data-id="un-saved-btn" aria-haspopup="listbox" aria-expanded="false">Saved (0) ▾</button>
-                <div class="ssv-menu" data-id="un-menu" role="listbox" aria-label="Saved usernames"></div>
-              </div>
-            </div>
             <div class="ssv-manage-row">
               <button class="ssv-btn ghost" data-action="un-manage" title="Manage saved usernames">Manage saved usernames</button>
             </div>
