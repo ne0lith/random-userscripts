@@ -139,7 +139,7 @@
 
 .ssv-modal {
   position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
-  width: min(600px, 92vw); max-height: min(68vh, 560px);
+  width: min(675px, 92vw); max-height: min(68vh, 560px);
   background: hsl(var(--popover)); color: hsl(var(--popover-foreground));
   border: 1px solid hsl(var(--border)); border-radius: var(--radius); box-shadow: var(--shadow-lg);
   display: flex; flex-direction: column; overflow: hidden; pointer-events: auto;
@@ -185,7 +185,6 @@
   .ssv-btn, .ssv-card, .ssv-input { transition: none !important; }
 }
 
-/* === AUTOCOMPLETE styles === */
 .ssv-ac {
   position: fixed;
   z-index: 2147483646;
@@ -221,7 +220,6 @@
   font-weight: 600;
 }
 
-/* Compact checkbox switch (very discreet) */
 .ssv-switch {
   display: inline-flex;
   align-items: center;
@@ -238,7 +236,6 @@
   cursor: pointer;
 }
 
-/* ===== SITE-WIDE DARK THEME OVERRIDES (strictly scoped to body.ssv-skin containers) ===== */
 html[data-ssv-theme="dark"] {
   --site-bg: hsl(var(--background));
   --site-fg: hsl(var(--foreground));
@@ -255,7 +252,6 @@ html[data-ssv-theme="dark"] {
   --site-ring: hsla(var(--ring), 0.65);
 }
 
-/* Page body */
 html[data-ssv-theme="dark"] body.ssv-skin {
   background: var(--site-bg) !important;
   background-image: none !important;
@@ -263,14 +259,12 @@ html[data-ssv-theme="dark"] body.ssv-skin {
   text-shadow: none !important;
 }
 
-/* Global links (outside our card) */
 html[data-ssv-theme="dark"] body.ssv-skin a {
   color: var(--site-fg) !important;
   border-bottom: 1px dotted hsla(215, 20%, 65%, 0.45) !important;
 }
 html[data-ssv-theme="dark"] body.ssv-skin a:hover { border-bottom-color: transparent !important; }
 
-/* Headings & emphasis */
 html[data-ssv-theme="dark"] body.ssv-skin h1,
 html[data-ssv-theme="dark"] body.ssv-skin h2,
 html[data-ssv-theme="dark"] body.ssv-skin h3,
@@ -282,7 +276,6 @@ html[data-ssv-theme="dark"] body.ssv-skin strong {
   color: var(--site-fg) !important;
 }
 
-/* Primary surfaces */
 html[data-ssv-theme="dark"] body.ssv-skin #main,
 html[data-ssv-theme="dark"] body.ssv-skin .box,
 html[data-ssv-theme="dark"] body.ssv-skin .spotlight .image,
@@ -293,7 +286,6 @@ html[data-ssv-theme="dark"] body.ssv-skin #footer {
   box-shadow: var(--shadow-md) !important;
 }
 
-/* NAV: default and sticky variant */
 html[data-ssv-theme="dark"] body.ssv-skin #nav,
 html[data-ssv-theme="dark"] body.ssv-skin #nav.alt {
   background: var(--site-card) !important;
@@ -319,12 +311,10 @@ html[data-ssv-theme="dark"] body.ssv-skin #nav ul li a.active {
   box-shadow: none !important;
 }
 
-/* Section tops */
 html[data-ssv-theme="dark"] body.ssv-skin #main > .main {
   border-top: 1px solid var(--site-border) !important;
 }
 
-/* HR / code / pre */
 html[data-ssv-theme="dark"] body.ssv-skin hr { border-bottom: 1px solid var(--site-border) !important; }
 html[data-ssv-theme="dark"] body.ssv-skin code {
   background: var(--site-muted) !important;
@@ -336,7 +326,6 @@ html[data-ssv-theme="dark"] body.ssv-skin pre code {
   background: var(--site-card) !important;
 }
 
-/* Buttons (scoped to #main and #nav to avoid our card) */
 html[data-ssv-theme="dark"] body.ssv-skin #main .button,
 html[data-ssv-theme="dark"] body.ssv-skin #main button,
 html[data-ssv-theme="dark"] body.ssv-skin #nav .button,
@@ -369,7 +358,6 @@ html[data-ssv-theme="dark"] body.ssv-skin #main input[type="submit"].primary {
   border-color: var(--site-border) !important;
 }
 
-/* Forms (scoped to #main only) */
 html[data-ssv-theme="dark"] body.ssv-skin #main label {
   color: var(--site-fg) !important;
 }
@@ -392,7 +380,6 @@ html[data-ssv-theme="dark"] body.ssv-skin #main textarea:focus {
   box-shadow: 0 0 0 3px hsl(var(--focus)), 0 0 0 5px var(--site-ring) !important;
 }
 
-/* Select arrow */
 html[data-ssv-theme="dark"] body.ssv-skin #main select {
   background-image:
     url("data:image/svg+xml;charset=utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='40' height='40' viewBox='0 0 40 40'%3E%3Cpath d='M9.4,12.3l10.4,10.4l10.4-10.4c.2-.2.5-.4.9-.4.3,0,.6.1.9.4l3.3,3.3c.2.2.4.5.4.9 0,.4-.1,.6-.4,.9L20.7,31.9c-.2.2-.5.4-.9.4-.3,0-.6-.1-.9-.4L4.3,17.3c-.2-.2-.4-.5-.4-.9 0-.4.1-.6.4-.9l3.3-3.3c.2-.2.5-.4.9-.4s.9.1.9.4z' fill='rgba(255,255,255,.55)'/%3E%3C/svg%3E")
@@ -400,13 +387,11 @@ html[data-ssv-theme="dark"] body.ssv-skin #main select {
   background-color: var(--site-bg) !important;
 }
 
-/* Placeholder */
 html[data-ssv-theme="dark"] body.ssv-skin #main ::placeholder {
   color: var(--site-muted-fg) !important;
   opacity: 1 !important;
 }
 
-/* Checks / radios */
 html[data-ssv-theme="dark"] body.ssv-skin #main input[type="checkbox"]+label:before,
 html[data-ssv-theme="dark"] body.ssv-skin #main input[type="radio"]+label:before {
   background: var(--site-bg) !important;
@@ -420,7 +405,6 @@ html[data-ssv-theme="dark"] body.ssv-skin #main input[type="radio"]+label:before
   color: var(--site-accent-fg) !important;
 }
 
-/* Tables */
 html[data-ssv-theme="dark"] body.ssv-skin #main table {
   color: var(--site-fg) !important;
 }
@@ -436,7 +420,6 @@ html[data-ssv-theme="dark"] body.ssv-skin #main table tbody tr:nth-child(2n+1) {
   background: rgba(255,255,255,0.035) !important;
 }
 
-/* Statistics & story tiles */
 html[data-ssv-theme="dark"] body.ssv-skin .statistics li {
   background: var(--site-muted) !important;
   color: var(--site-fg) !important;
@@ -449,20 +432,16 @@ html[data-ssv-theme="dark"] body.ssv-skin .stylehighlights {
   border: 1px solid var(--site-border) !important;
 }
 
-/* Story text colors */
 html[data-ssv-theme="dark"] body.ssv-skin .storycount { color: var(--site-fg) !important; }
 html[data-ssv-theme="dark"] body.ssv-skin .storyname  { color: var(--site-fg) !important; }
 html[data-ssv-theme="dark"] body.ssv-skin .storytime  { color: var(--site-muted-fg) !important; }
 html[data-ssv-theme="dark"] body.ssv-skin .response ul li p { color: var(--site-fg) !important; }
 
-/* Keep their grecaptcha hidden */
 html[data-ssv-theme="dark"] body.ssv-skin .grecaptcha-badge { display: none !important; }
 
-/* Tighten card control borders explicitly */
 .ssv-card .ssv-btn { border: 1px solid hsl(var(--border)) !important; }
 .ssv-card .ssv-input { border: 1px solid hsl(var(--input)) !important; }
 
-/* Primary CTA recolor */
 html[data-ssv-theme="dark"] body.ssv-skin #main .button.primary,
 html[data-ssv-theme="dark"] body.ssv-skin #nav .button.primary,
 html[data-ssv-theme="dark"] body.ssv-skin #main button.primary,
