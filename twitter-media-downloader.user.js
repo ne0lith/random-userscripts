@@ -7,7 +7,7 @@
 // @description:ja ワンクリックで動画・画像を保存する。
 // @description:zh-cn 一键保存视频/图片
 // @description:zh-tw 一鍵保存視頻/圖片
-// @version     1.44
+// @version     1.46
 // @author      AMANE
 // @namespace   none
 // @match       https://x.com/*
@@ -509,6 +509,12 @@ const TMD = (function () {
       bulk_mb_input.type = 'number';
       bulk_mb_input.min = '1';
 
+      let bulk_limit_row = $element(bulk, 'label', null, null, 'tmd-settings-row');
+      $element(bulk_limit_row, 'span', null, lang.dialog.bulk_scrape_limit, 'tmd-settings-label');
+      let bulk_limit_input = $element(bulk_limit_row, 'input', null, await GM_getValue('bulk_scrape_limit', 50), 'tmd-settings-number');
+      bulk_limit_input.type = 'number';
+      bulk_limit_input.min = '1';
+
       let bulk_redownload_row = $element(bulk, 'label', null, null, 'tmd-settings-row');
       $element(bulk_redownload_row, 'span', null, lang.dialog.bulk_redownload, 'tmd-settings-label');
       let bulk_redownload_input = $element(bulk_redownload_row, 'input', null, 'checkbox', 'tmd-switch');
@@ -563,8 +569,10 @@ const TMD = (function () {
         await GM_setValue('filename', filename_input.value);
         let maxFiles = parseInt(bulk_files_input.value, 10);
         let maxMb = parseInt(bulk_mb_input.value, 10);
+        let scrapeLimit = parseInt(bulk_limit_input.value, 10);
         if (!isNaN(maxFiles) && maxFiles > 0) await GM_setValue('bulk_zip_max_files', maxFiles);
         if (!isNaN(maxMb) && maxMb > 0) await GM_setValue('bulk_zip_max_mb', maxMb);
+        if (!isNaN(scrapeLimit) && scrapeLimit > 0) await GM_setValue('bulk_scrape_limit', scrapeLimit);
         wapper.remove();
       };
     },
@@ -717,7 +725,7 @@ const TMD = (function () {
     },
     bulk: (function () {
       let bar, statusEl, startBtn, stopBtn, optsEl;
-      let zipInput, chunkInput, redownloadInput, filesInput, mbInput, warnEl, chunkFields;
+      let zipInput, chunkInput, redownloadInput, filesInput, mbInput, limitInput, warnEl, chunkFields;
       let running = false;
       let abort = false;
       let lastPath = '';
@@ -730,7 +738,7 @@ const TMD = (function () {
         running = isRunning;
         if (startBtn) startBtn.disabled = isRunning;
         if (stopBtn) stopBtn.disabled = !isRunning;
-        [zipInput, chunkInput, redownloadInput, filesInput, mbInput].forEach(el => {
+        [zipInput, chunkInput, redownloadInput, filesInput, mbInput, limitInput].forEach(el => {
           if (el) el.disabled = isRunning;
         });
       }
@@ -750,18 +758,21 @@ const TMD = (function () {
         redownloadInput.checked = await GM_getValue('bulk_redownload', false);
         filesInput.value = await GM_getValue('bulk_zip_max_files', 80);
         mbInput.value = await GM_getValue('bulk_zip_max_mb', 400);
+        limitInput.value = await GM_getValue('bulk_scrape_limit', 50);
         syncOptUi();
       }
 
       function readRunOptions() {
         let maxFiles = parseInt(filesInput && filesInput.value, 10);
         let maxMb = parseInt(mbInput && mbInput.value, 10);
+        let limit = parseInt(limitInput && limitInput.value, 10);
         return {
           zip: !!(zipInput && zipInput.checked),
           chunk: !!(chunkInput && chunkInput.checked),
           redownload: !!(redownloadInput && redownloadInput.checked),
           maxFiles: !isNaN(maxFiles) && maxFiles > 0 ? maxFiles : 80,
-          maxMb: !isNaN(maxMb) && maxMb > 0 ? maxMb : 400
+          maxMb: !isNaN(maxMb) && maxMb > 0 ? maxMb : 400,
+          limit: !isNaN(limit) && limit > 0 ? limit : 50
         };
       }
 
@@ -794,6 +805,7 @@ const TMD = (function () {
                   '<span class="tmd-bulk-status"></span>' +
                 '</div>' +
                 '<div class="tmd-bulk-opts">' +
+                  '<label class="tmd-bulk-opt tmd-bulk-opt-num"><span></span> <input type="number" min="1" class="tmd-settings-number tmd-bulk-limit"></label>' +
                   '<label class="tmd-bulk-opt"><input type="checkbox" class="tmd-bulk-zip"> <span></span></label>' +
                   '<label class="tmd-bulk-opt"><input type="checkbox" class="tmd-bulk-chunk"> <span></span></label>' +
                   '<label class="tmd-bulk-opt"><input type="checkbox" class="tmd-bulk-redownload"> <span></span></label>' +
@@ -815,6 +827,7 @@ const TMD = (function () {
             redownloadInput = bar.querySelector('.tmd-bulk-redownload');
             filesInput = bar.querySelector('.tmd-bulk-max-files');
             mbInput = bar.querySelector('.tmd-bulk-max-mb');
+            limitInput = bar.querySelector('.tmd-bulk-limit');
             warnEl = bar.querySelector('.tmd-bulk-warn');
             chunkFields = bar.querySelector('.tmd-bulk-chunk-fields');
             startBtn.onclick = () => TMD.bulk.start();
@@ -824,6 +837,7 @@ const TMD = (function () {
           }
           startBtn.textContent = lang.bulk.start;
           stopBtn.textContent = lang.bulk.stop;
+          bar.querySelector('.tmd-bulk-limit').previousElementSibling.textContent = lang.dialog.bulk_scrape_limit;
           bar.querySelector('.tmd-bulk-zip + span').textContent = lang.dialog.bulk_zip;
           bar.querySelector('.tmd-bulk-chunk + span').textContent = lang.dialog.bulk_zip_chunk;
           bar.querySelector('.tmd-bulk-redownload + span').textContent = lang.dialog.bulk_redownload;
@@ -864,21 +878,24 @@ const TMD = (function () {
           abort = false;
           setRunning(true);
           try {
-            setStatus(lang.bulk.scrolling.replace('{n}', '0'));
+            let limit = Math.min(opts.limit || 50, 5000);
+            setStatus(lang.bulk.scrolling.replace('{n}', '0').replace('{limit}', String(limit)));
             let seen = new Set();
             let ids = [];
             window.scrollTo(0, 0);
             await sleep(400);
             let idleRounds = 0;
             const MAX_IDLE = 5;
-            const MAX_IDS = 5000;
-            while (!abort && ids.length < MAX_IDS) {
+            while (!abort && ids.length < limit) {
               let before = ids.length;
               scanIds(seen, ids);
-              setStatus(lang.bulk.scrolling.replace('{n}', String(ids.length)));
+              if (ids.length > limit) ids.length = limit;
+              setStatus(lang.bulk.scrolling.replace('{n}', String(ids.length)).replace('{limit}', String(limit)));
+              if (ids.length >= limit) break;
               window.scrollBy(0, Math.max(400, window.innerHeight * 0.85));
               await sleep(1600);
               scanIds(seen, ids);
+              if (ids.length > limit) ids.length = limit;
               if (ids.length === before) idleRounds += 1;
               else idleRounds = 0;
               let nearBottom = (window.innerHeight + window.scrollY) >= (document.documentElement.scrollHeight - 240);
@@ -990,8 +1007,23 @@ const TMD = (function () {
             let name = chunk
               ? user + '_media_' + stamp + '_part' + part + '.zip'
               : user + '_media_' + stamp + '.zip';
-            setStatus(lang.bulk.zipping.replace('{n}', String(part)));
-            let blob = await zip.generateAsync({type: 'blob'});
+            let partNum = String(part);
+            let fileCount = String(zipFiles);
+            setStatus(lang.bulk.zipping
+              .replace('{n}', partNum)
+              .replace('{pct}', '0')
+              .replace('{files}', fileCount));
+            let lastPct = -1;
+            let blob = await zip.generateAsync({type: 'blob', streamFiles: true}, meta => {
+              let pct = meta && typeof meta.percent === 'number' ? Math.floor(meta.percent) : 0;
+              if (pct === lastPct) return;
+              lastPct = pct;
+              setStatus(lang.bulk.zipping
+                .replace('{n}', partNum)
+                .replace('{pct}', String(pct))
+                .replace('{files}', fileCount));
+            });
+            setStatus(lang.bulk.zip_saving.replace('{n}', partNum));
             await TMD.saveBlob(blob, name);
             part += 1;
             zip = new JSZip();
@@ -1008,9 +1040,19 @@ const TMD = (function () {
               .replace('{total}', String(targets.length))
               .replace('{failed}', String(failed)));
             try {
+              setStatus(lang.bulk.resolving
+                .replace('{done}', String(done))
+                .replace('{total}', String(targets.length))
+                .replace('{id}', status_id));
               let resolved = await TMD.resolveTweetMedia(status_id);
               let buffers = [];
               for (let f = 0; f < resolved.files.length; f++) {
+                setStatus(lang.bulk.fetching
+                  .replace('{done}', String(done))
+                  .replace('{total}', String(targets.length))
+                  .replace('{file}', String(f + 1))
+                  .replace('{files}', String(resolved.files.length))
+                  .replace('{failed}', String(failed)));
                 let buf = await TMD.fetchBuffer(resolved.files[f].url);
                 buffers.push({
                   origName: resolved.files[f].name,
@@ -1127,14 +1169,18 @@ const TMD = (function () {
         download: 'Download', completed: 'Download Completed', settings: 'Settings',
         dialog: {
           title: 'Download Settings', save: 'Save', save_history: 'Remember download history', clear_history: '(Clear)', clear_confirm: 'Clear download history?', show_sensitive: 'Always show sensitive content', pattern: 'File Name Pattern',
-          bulk_section: 'Bulk media page', bulk_zip: 'Download as ZIP', bulk_zip_chunk: 'Split ZIP into chunks', bulk_zip_unchunked_warn: 'One large ZIP can freeze or crash the tab on big accounts.', bulk_zip_max_files: 'Max files per ZIP', bulk_zip_max_mb: 'Max MB per ZIP', bulk_redownload: 'Also re-download already completed'
+          bulk_section: 'Bulk media page', bulk_zip: 'Download as ZIP', bulk_zip_chunk: 'Split ZIP into chunks', bulk_zip_unchunked_warn: 'One large ZIP can freeze or crash the tab on big accounts.', bulk_zip_max_files: 'Max files per ZIP', bulk_zip_max_mb: 'Max MB per ZIP', bulk_scrape_limit: 'Scrape limit', bulk_redownload: 'Also re-download already completed'
         },
         bulk: {
           menu: 'Bulk download media page', start: 'Download all', stop: 'Stop', need_media: 'Open a profile Media tab first.',
           opts_hint: 'These options apply to this run only. Defaults come from Settings.',
           redownload_confirm: 'Re-download is on. Previously completed tweets will be fetched again. Continue?',
-          scrolling: 'Scrolling… {n} found', nothing: 'Nothing to download', stopping: 'Stopping…',
-          downloading: 'Downloading {done}/{total} (failed {failed})', zipping: 'Saving ZIP part {n}…',
+          scrolling: 'Scrolling… {n}/{limit} found', nothing: 'Nothing to download', stopping: 'Stopping…',
+          downloading: 'Downloading {done}/{total} (failed {failed})',
+          resolving: 'Resolving {done}/{total}… ({id})',
+          fetching: 'Fetching media {done}/{total} — file {file}/{files} (failed {failed})',
+          zipping: 'Building ZIP part {n}… {pct}% ({files} files)',
+          zip_saving: 'Writing ZIP part {n} to disk…',
           done: 'Done: {n} saved, {failed} failed', stopped: 'Stopped after {n}', failed: 'Failed'
         }
       },
@@ -1142,14 +1188,18 @@ const TMD = (function () {
         download: 'ダウンロード', completed: 'ダウンロード完了', settings: '設定',
         dialog: {
           title: 'ダウンロード設定', save: '保存', save_history: 'ダウンロード履歴を保存する', clear_history: '(クリア)', clear_confirm: 'ダウンロード履歴を削除する?', show_sensitive: 'センシティブな内容を常に表示する', pattern: 'ファイル名パターン',
-          bulk_section: 'メディア一括', bulk_zip: 'ZIPでダウンロード', bulk_zip_chunk: 'ZIPを分割する', bulk_zip_unchunked_warn: '巨大な単一ZIPはタブをフリーズ/クラッシュさせることがあります。', bulk_zip_max_files: 'ZIPあたり最大ファイル数', bulk_zip_max_mb: 'ZIPあたり最大MB', bulk_redownload: '取得済みも再ダウンロード'
+          bulk_section: 'メディア一括', bulk_zip: 'ZIPでダウンロード', bulk_zip_chunk: 'ZIPを分割する', bulk_zip_unchunked_warn: '巨大な単一ZIPはタブをフリーズ/クラッシュさせることがあります。', bulk_zip_max_files: 'ZIPあたり最大ファイル数', bulk_zip_max_mb: 'ZIPあたり最大MB', bulk_scrape_limit: '取得上限', bulk_redownload: '取得済みも再ダウンロード'
         },
         bulk: {
           menu: 'メディア一括ダウンロード', start: 'すべてダウンロード', stop: '停止', need_media: 'プロフィールのメディアタブを開いてください。',
           opts_hint: 'この実行のみ有効。初期値は設定から読み込みます。',
           redownload_confirm: '再ダウンロードが有効です。完了済みも再取得します。続行しますか?',
-          scrolling: 'スクロール中… {n} 件', nothing: 'ダウンロード対象なし', stopping: '停止中…',
-          downloading: 'ダウンロード中 {done}/{total} (失敗 {failed})', zipping: 'ZIP保存中 part {n}…',
+          scrolling: 'スクロール中… {n}/{limit} 件', nothing: 'ダウンロード対象なし', stopping: '停止中…',
+          downloading: 'ダウンロード中 {done}/{total} (失敗 {failed})',
+          resolving: '解決中 {done}/{total}… ({id})',
+          fetching: '取得中 {done}/{total} — ファイル {file}/{files} (失敗 {failed})',
+          zipping: 'ZIP作成中 part {n}… {pct}% ({files} ファイル)',
+          zip_saving: 'ZIP part {n} を保存中…',
           done: '完了: {n} 件、失敗 {failed}', stopped: '{n} 件で停止', failed: '失敗'
         }
       },
@@ -1157,30 +1207,38 @@ const TMD = (function () {
         download: '下载', completed: '下载完成', settings: '设置',
         dialog: {
           title: '下载设置', save: '保存', save_history: '保存下载记录', clear_history: '(清除)', clear_confirm: '确认要清除下载记录?', show_sensitive: '自动显示敏感的内容', pattern: '文件名格式',
-          bulk_section: '媒体页批量', bulk_zip: '打包为 ZIP', bulk_zip_chunk: '分割 ZIP', bulk_zip_unchunked_warn: '单个超大 ZIP 可能导致标签页卡死或崩溃。', bulk_zip_max_files: '每个 ZIP 最大文件数', bulk_zip_max_mb: '每个 ZIP 最大 MB', bulk_redownload: '重新下载已完成的'
+          bulk_section: '媒体页批量', bulk_zip: '打包为 ZIP', bulk_zip_chunk: '分割 ZIP', bulk_zip_unchunked_warn: '单个超大 ZIP 可能导致标签页卡死或崩溃。', bulk_zip_max_files: '每个 ZIP 最大文件数', bulk_zip_max_mb: '每个 ZIP 最大 MB', bulk_scrape_limit: '抓取上限', bulk_redownload: '重新下载已完成的'
         },
         bulk: {
           menu: '批量下载媒体页', start: '全部下载', stop: '停止', need_media: '请先打开用户的媒体标签页。',
           opts_hint: '仅用于本次运行。默认值来自设置。',
           redownload_confirm: '已开启重新下载,将再次获取已完成的推文。继续?',
-          scrolling: '滚动中… 已找到 {n}', nothing: '没有可下载的内容', stopping: '正在停止…',
-          downloading: '下载中 {done}/{total}(失败 {failed})', zipping: '正在保存 ZIP 第 {n} 卷…',
-          done: '完成:{n} 个,失败 {failed}', stopped: '已停止({n})', failed: '失败'
+          scrolling: '滚动中… {n}/{limit}', nothing: '没有可下载的内容', stopping: '正在停止…',
+          downloading: '下载中 {done}/{total}（失败 {failed}）',
+          resolving: '解析中 {done}/{total}… ({id})',
+          fetching: '拉取媒体 {done}/{total} — 文件 {file}/{files}（失败 {failed}）',
+          zipping: '正在打包 ZIP 第 {n} 卷… {pct}%（{files} 个文件）',
+          zip_saving: '正在写入 ZIP 第 {n} 卷…',
+          done: '完成：{n} 个，失败 {failed}', stopped: '已停止（{n}）', failed: '失败'
         }
       },
       'zh-Hant': {
         download: '下載', completed: '下載完成', settings: '設置',
         dialog: {
           title: '下載設置', save: '保存', save_history: '保存下載記錄', clear_history: '(清除)', clear_confirm: '確認要清除下載記錄?', show_sensitive: '自動顯示敏感的内容', pattern: '文件名規則',
-          bulk_section: '媒體頁批量', bulk_zip: '打包為 ZIP', bulk_zip_chunk: '分割 ZIP', bulk_zip_unchunked_warn: '單一超大 ZIP 可能導致分頁凍結或崩潰。', bulk_zip_max_files: '每個 ZIP 最大檔案數', bulk_zip_max_mb: '每個 ZIP 最大 MB', bulk_redownload: '重新下載已完成的'
+          bulk_section: '媒體頁批量', bulk_zip: '打包為 ZIP', bulk_zip_chunk: '分割 ZIP', bulk_zip_unchunked_warn: '單一超大 ZIP 可能導致分頁凍結或崩潰。', bulk_zip_max_files: '每個 ZIP 最大檔案數', bulk_zip_max_mb: '每個 ZIP 最大 MB', bulk_scrape_limit: '抓取上限', bulk_redownload: '重新下載已完成的'
         },
         bulk: {
           menu: '批量下載媒體頁', start: '全部下載', stop: '停止', need_media: '請先開啟使用者的媒體分頁。',
           opts_hint: '僅用於本次執行。預設值來自設定。',
           redownload_confirm: '已開啟重新下載,將再次取得已完成的推文。繼續?',
-          scrolling: '捲動中… 已找到 {n}', nothing: '沒有可下載的內容', stopping: '正在停止…',
-          downloading: '下載中 {done}/{total}(失敗 {failed})', zipping: '正在儲存 ZIP 第 {n} 卷…',
-          done: '完成:{n} 個,失敗 {failed}', stopped: '已停止({n})', failed: '失敗'
+          scrolling: '捲動中… {n}/{limit}', nothing: '沒有可下載的內容', stopping: '正在停止…',
+          downloading: '下載中 {done}/{total}（失敗 {failed}）',
+          resolving: '解析中 {done}/{total}… ({id})',
+          fetching: '拉取媒體 {done}/{total} — 檔案 {file}/{files}（失敗 {failed}）',
+          zipping: '正在打包 ZIP 第 {n} 卷… {pct}%（{files} 個檔案）',
+          zip_saving: '正在寫入 ZIP 第 {n} 卷…',
+          done: '完成：{n} 個，失敗 {failed}', stopped: '已停止（{n}）', failed: '失敗'
         }
       }
     },
