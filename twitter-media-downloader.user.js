@@ -7,7 +7,7 @@
 // @description:ja ワンクリックで動画・画像を保存する。
 // @description:zh-cn 一键保存视频/图片
 // @description:zh-tw 一鍵保存視頻/圖片
-// @version     1.28
+// @version     1.30
 // @author      AMANE
 // @namespace   none
 // @match       https://x.com/*
@@ -18,6 +18,7 @@
 // @grant       GM_download
 // @compatible  Chrome
 // @compatible  Firefox
+// @compatible  Helium
 // @license     MIT
 // @downloadURL https://github.com/ne0lith/random-userscripts/raw/main/twitter-media-downloader.user.js
 // @updateURL https://github.com/ne0lith/random-userscripts/raw/main/twitter-media-downloader.user.js
@@ -47,8 +48,10 @@ const TMD = (function () {
     detect: function(node) {
       let article = node.tagName == 'ARTICLE' && node || node.tagName == 'DIV' && (node.querySelector('article') || node.closest('article'));
       if (article) this.addButtonTo(article);
-      let listitems = node.tagName == 'LI' && node.getAttribute('role') == 'listitem' && [node] || node.tagName == 'DIV' && node.querySelectorAll('li[role="listitem"]');
-      if (listitems) this.addButtonToMedia(listitems);
+      let listitem = node.tagName == 'LI' && node.getAttribute('role') == 'listitem' && node
+        || (node.closest && node.closest('li[role="listitem"]'));
+      let listitems = listitem ? [listitem] : (node.querySelectorAll && node.querySelectorAll('li[role="listitem"]'));
+      if (listitems && listitems.length) this.addButtonToMedia(listitems);
     },
     addButtonTo: function (article) {
       if (article.dataset.detected) return;
@@ -108,16 +111,20 @@ const TMD = (function () {
     },
     addButtonToMedia: function(listitems) {
       listitems.forEach(li => {
-        if (li.dataset.detected) return;
-        li.dataset.detected = 'true';
-        let status_id = li.querySelector('a[href*="/status/"]').href.split('/status/').pop().split('/').shift();
-        let is_exist = history.indexOf(status_id) >= 0;
-        let btn_down = document.createElement('div');
-        btn_down.innerHTML = '<div><div><svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">' + this.svg + '</svg></div></div>';
-        btn_down.classList.add('tmd-down', 'tmd-media');
-        this.status(btn_down, is_exist ? 'completed' : 'download', is_exist ? lang.completed : lang.download);
-        li.appendChild(btn_down);
-        btn_down.onclick = () => this.click(btn_down, status_id, is_exist);
+        try {
+          if (li.dataset.detected) return;
+          let status_link = li.querySelector('a[href*="/status/"]');
+          if (!status_link) return;
+          let status_id = status_link.href.split('/status/').pop().split('/').shift();
+          let is_exist = history.indexOf(status_id) >= 0;
+          let btn_down = document.createElement('div');
+          btn_down.innerHTML = '<div><div><svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">' + this.svg + '</svg></div></div>';
+          btn_down.classList.add('tmd-down', 'tmd-media');
+          this.status(btn_down, is_exist ? 'completed' : 'download', is_exist ? lang.completed : lang.download);
+          li.appendChild(btn_down);
+          btn_down.onclick = () => this.click(btn_down, status_id, is_exist);
+          li.dataset.detected = 'true';
+        } catch (e) {}
       });
     },
     click: async function (btn, status_id, is_exist, index) {
@@ -128,11 +135,11 @@ const TMD = (function () {
       let json = await this.fetchJson(status_id);
       let tweet = json.legacy;
       let user = json.core.user_results.result.legacy;
-      let invalid_chars = {'\\': '＼', '\/': '／', '\|': '｜', '<': '＜', '>': '＞', ':': '：', '*': '＊', '?': '？', '"': '＂', '\u200b': '', '\u200c': '', '\u200d': '', '\u2060': '', '\ufeff': '', '🔞': ''};
+      let invalid_chars = {'\\': '\', '\/': '/', '\|': '|', '<': '<', '>': '>', ':': ':', '*': '*', '?': '?', '"': '"', '\u200b': '', '\u200c': '', '\u200d': '', '\u2060': '', '\ufeff': '', '': ''};
       let datetime = out.match(/{date-time(-local)?:[^{}]+}/) ? out.match(/{date-time(?:-local)?:([^{}]+)}/)[1].replace(/[\\/|<>*?:"]/g, v => invalid_chars[v]) : 'YYYYMMDD-hhmmss';
       let info = {};
       info['status-id'] = status_id;
-      info['user-name'] = user.name.replace(/([\\/|*?:"]|[\u200b-\u200d\u2060\ufeff]|🔞)/g, v => invalid_chars[v]);
+      info['user-name'] = user.name.replace(/([\\/|*?:"]|[\u200b-\u200d\u2060\ufeff]|)/g, v => invalid_chars[v]);
       info['user-id'] = user.screen_name;
       info['date-time'] = this.formatDate(tweet.created_at, datetime);
       info['date-time-local'] = this.formatDate(tweet.created_at, datetime, true);
@@ -443,9 +450,9 @@ const TMD = (function () {
     })(),
     language: {
       en: {download: 'Download', completed: 'Download Completed', settings: 'Settings', dialog: {title: 'Download Settings', save: 'Save', save_history: 'Remember download history', clear_history: '(Clear)', clear_confirm: 'Clear download history?', show_sensitive: 'Always show sensitive content', pattern: 'File Name Pattern'}},
-      ja: {download: 'ダウンロード', completed: 'ダウンロード完了', settings: '設定', dialog: {title: 'ダウンロード設定', save: '保存', save_history: 'ダウンロード履歴を保存する', clear_history: '(クリア)', clear_confirm: 'ダウンロード履歴を削除する？', show_sensitive: 'センシティブな内容を常に表示する', pattern: 'ファイル名パターン'}},
-      zh: {download: '下载', completed: '下载完成', settings: '设置', dialog: {title: '下载设置', save: '保存', save_history: '保存下载记录', clear_history: '(清除)', clear_confirm: '确认要清除下载记录？', show_sensitive: '自动显示敏感的内容', pattern: '文件名格式'}},
-      'zh-Hant': {download: '下載', completed: '下載完成', settings: '設置', dialog: {title: '下載設置', save: '保存', save_history: '保存下載記錄', clear_history: '(清除)', clear_confirm: '確認要清除下載記錄？', show_sensitive: '自動顯示敏感的内容', pattern: '文件名規則'}}
+      ja: {download: 'ダウンロード', completed: 'ダウンロード完了', settings: '設定', dialog: {title: 'ダウンロード設定', save: '保存', save_history: 'ダウンロード履歴を保存する', clear_history: '(クリア)', clear_confirm: 'ダウンロード履歴を削除する?', show_sensitive: 'センシティブな内容を常に表示する', pattern: 'ファイル名パターン'}},
+      zh: {download: '下载', completed: '下载完成', settings: '设置', dialog: {title: '下载设置', save: '保存', save_history: '保存下载记录', clear_history: '(清除)', clear_confirm: '确认要清除下载记录?', show_sensitive: '自动显示敏感的内容', pattern: '文件名格式'}},
+      'zh-Hant': {download: '下載', completed: '下載完成', settings: '設置', dialog: {title: '下載設置', save: '保存', save_history: '保存下載記錄', clear_history: '(清除)', clear_confirm: '確認要清除下載記錄?', show_sensitive: '自動顯示敏感的内容', pattern: '文件名規則'}}
     },
     css: `
 .tmd-down {margin-left: 12px; order: 99;}
@@ -455,7 +462,7 @@ const TMD = (function () {
 .tmd-down:hover svg {color: rgba(29, 161, 242, 1.0);}
 .tmd-down:hover div:first-child:not(:last-child) {background-color: rgba(29, 161, 242, 0.1);}
 .tmd-down:active div:first-child:not(:last-child) {background-color: rgba(29, 161, 242, 0.2);}
-.tmd-down.tmd-media {position: absolute; right: 0;}
+.tmd-down.tmd-media {position: absolute; right: 0; z-index: 1;}
 .tmd-down.tmd-media > div {display: flex; border-radius: 99px; margin: 2px;}
 .tmd-down.tmd-media > div > div {display: flex; margin: 6px; color: #fff;}
 .tmd-down.tmd-media:hover > div {background-color: rgba(255,255,255, 0.6);}
