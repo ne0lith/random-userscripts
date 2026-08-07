@@ -7,7 +7,7 @@
 // @description:ja ワンクリックで動画・画像を保存する。
 // @description:zh-cn 一键保存视频/图片
 // @description:zh-tw 一鍵保存視頻/圖片
-// @version     1.30
+// @version     1.31
 // @author      AMANE
 // @namespace   none
 // @match       https://x.com/*
@@ -48,10 +48,18 @@ const TMD = (function () {
     detect: function(node) {
       let article = node.tagName == 'ARTICLE' && node || node.tagName == 'DIV' && (node.querySelector('article') || node.closest('article'));
       if (article) this.addButtonTo(article);
-      let listitem = node.tagName == 'LI' && node.getAttribute('role') == 'listitem' && node
-        || (node.closest && node.closest('li[role="listitem"]'));
-      let listitems = listitem ? [listitem] : (node.querySelectorAll && node.querySelectorAll('li[role="listitem"]'));
-      if (listitems && listitems.length) this.addButtonToMedia(listitems);
+      if (!node || node.nodeType !== 1) return;
+      let listitems = [];
+      if (node.tagName == 'LI' && node.getAttribute('role') == 'listitem') {
+        listitems.push(node);
+      } else {
+        let closest = node.closest('li[role="listitem"]');
+        if (closest) listitems.push(closest);
+      }
+      node.querySelectorAll('li[role="listitem"]').forEach(li => {
+        if (listitems.indexOf(li) < 0) listitems.push(li);
+      });
+      if (listitems.length) this.addButtonToMedia(listitems);
     },
     addButtonTo: function (article) {
       if (article.dataset.detected) return;
@@ -116,15 +124,23 @@ const TMD = (function () {
           let status_link = li.querySelector('a[href*="/status/"]');
           if (!status_link) return;
           let status_id = status_link.href.split('/status/').pop().split('/').shift();
-          let is_exist = history.indexOf(status_id) >= 0;
+          if (!status_id) return;
+          let is_exist = Array.isArray(history) && history.indexOf(status_id) >= 0;
           let btn_down = document.createElement('div');
           btn_down.innerHTML = '<div><div><svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">' + this.svg + '</svg></div></div>';
           btn_down.classList.add('tmd-down', 'tmd-media');
           this.status(btn_down, is_exist ? 'completed' : 'download', is_exist ? lang.completed : lang.download);
+          if (getComputedStyle(li).position === 'static') li.style.position = 'relative';
           li.appendChild(btn_down);
-          btn_down.onclick = () => this.click(btn_down, status_id, is_exist);
+          btn_down.onclick = e => {
+            e.preventDefault();
+            e.stopPropagation();
+            this.click(btn_down, status_id, is_exist);
+          };
           li.dataset.detected = 'true';
-        } catch (e) {}
+        } catch (e) {
+          console.warn('[TMD] addButtonToMedia', e);
+        }
       });
     },
     click: async function (btn, status_id, is_exist, index) {
@@ -462,7 +478,7 @@ const TMD = (function () {
 .tmd-down:hover svg {color: rgba(29, 161, 242, 1.0);}
 .tmd-down:hover div:first-child:not(:last-child) {background-color: rgba(29, 161, 242, 0.1);}
 .tmd-down:active div:first-child:not(:last-child) {background-color: rgba(29, 161, 242, 0.2);}
-.tmd-down.tmd-media {position: absolute; right: 0; z-index: 1;}
+.tmd-down.tmd-media {position: absolute; right: 0; top: 0; z-index: 10; pointer-events: auto;}
 .tmd-down.tmd-media > div {display: flex; border-radius: 99px; margin: 2px;}
 .tmd-down.tmd-media > div > div {display: flex; margin: 6px; color: #fff;}
 .tmd-down.tmd-media:hover > div {background-color: rgba(255,255,255, 0.6);}
