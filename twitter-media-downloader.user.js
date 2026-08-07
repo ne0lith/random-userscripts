@@ -7,7 +7,7 @@
 // @description:ja ワンクリックで動画・画像を保存する。
 // @description:zh-cn 一键保存视频/图片
 // @description:zh-tw 一鍵保存視頻/圖片
-// @version     1.31
+// @version     1.40
 // @author      AMANE
 // @namespace   none
 // @match       https://x.com/*
@@ -63,7 +63,7 @@ const TMD = (function () {
     },
     addButtonTo: function (article) {
       if (article.dataset.detected) return;
-      article.dataset.detected = 'true';
+      let lightbox = location.pathname.match(/\/status\/(\d+)\/(photo|video)\/(\d+)/);
       let media_selector = [
         'a[href*="/photo/1"]',
         'div[role="progressbar"]',
@@ -71,48 +71,67 @@ const TMD = (function () {
         'a[href="/settings/content_you_see"]', //hidden content
         'div.media-image-container', // for tweetdeck
         'div.media-preview-container', // for tweetdeck
-        'div[aria-labelledby]>div:first-child>div[role="button"][tabindex="0"]' //for audio (experimental)
+        'div[aria-labelledby]>div:first-child>div[role="button"][tabindex="0"]', //for audio (experimental)
+        '[data-testid="tweetPhoto"]',
+        '[data-testid="videoPlayer"]',
+        '[data-testid="videoComponent"]'
       ];
       let media = article.querySelector(media_selector.join(','));
-      if (media) {
-        let status_id = article.querySelector('a[href*="/status/"]').href.split('/status/').pop().split('/').shift();
-        let btn_group = article.querySelector('div[role="group"]:last-of-type, ul.tweet-actions, ul.tweet-detail-actions');
-        let btn_share = Array.from(btn_group.querySelectorAll(':scope>div>div, li.tweet-action-item>a, li.tweet-detail-action-item>a')).pop().parentNode;
-        let btn_down = btn_share.cloneNode(true);
-        btn_down.querySelector('button').removeAttribute('disabled');
-        if (is_tweetdeck) {
-          btn_down.firstElementChild.innerHTML = '<svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">' + this.svg + '</svg>';
-          btn_down.firstElementChild.removeAttribute('rel');
-          btn_down.classList.replace("pull-left", "pull-right");
-        } else {
-          btn_down.querySelector('svg').innerHTML = this.svg;
-        }
-        let is_exist = history.indexOf(status_id) >= 0;
-        this.status(btn_down, 'tmd-down');
-        this.status(btn_down, is_exist ? 'completed' : 'download', is_exist ? lang.completed : lang.download);
-        btn_group.insertBefore(btn_down, btn_share.nextSibling);
-        btn_down.onclick = () => this.click(btn_down, status_id, is_exist);
-        if (show_sensitive) {
-          let btn_show = article.querySelector('div[aria-labelledby] div[role="button"][tabindex="0"]:not([data-testid]) > div[dir] > span > span');
-          if (btn_show) btn_show.click();
-        }
+      let status_anchor = article.querySelector('a[href*="/status/"]');
+      let status_id = status_anchor && status_anchor.href.split('/status/').pop().split('/').shift();
+      // Photo/video lightbox: actions live in the side article, but the media node is outside it.
+      if (!media && lightbox && status_id === lightbox[1]) {
+        media = article.querySelector('div[role="group"]');
+      }
+      if (!media) {
+        // Lightbox side panel may mount before status links exist; retry on later mutations.
+        if (lightbox && !status_id && article.closest('[role="dialog"], [aria-modal="true"]')) return;
+        article.dataset.detected = 'true';
+        return;
+      }
+      if (!status_id) status_id = lightbox && lightbox[1];
+      if (!status_id) {
+        article.dataset.detected = 'true';
+        return;
+      }
+      let btn_group = article.querySelector('div[role="group"]:last-of-type, ul.tweet-actions, ul.tweet-detail-actions');
+      if (!btn_group) return;
+      let btn_share = Array.from(btn_group.querySelectorAll(':scope>div>div, li.tweet-action-item>a, li.tweet-detail-action-item>a')).pop();
+      if (!btn_share) return;
+      btn_share = btn_share.parentNode;
+      let btn_down = btn_share.cloneNode(true);
+      let btn_el = btn_down.querySelector('button');
+      if (btn_el) btn_el.removeAttribute('disabled');
+      if (is_tweetdeck) {
+        btn_down.firstElementChild.innerHTML = '<svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">' + this.svg + '</svg>';
+        btn_down.firstElementChild.removeAttribute('rel');
+        btn_down.classList.replace("pull-left", "pull-right");
+      } else {
+        let svg = btn_down.querySelector('svg');
+        if (svg) svg.innerHTML = this.svg;
+      }
+      let is_exist = history.indexOf(status_id) >= 0;
+      this.status(btn_down, 'tmd-down');
+      this.status(btn_down, is_exist ? 'completed' : 'download', is_exist ? lang.completed : lang.download);
+      btn_group.insertBefore(btn_down, btn_share.nextSibling);
+      btn_down.onclick = () => this.click(btn_down, status_id, is_exist);
+      article.dataset.detected = 'true';
+      if (show_sensitive) {
+        let btn_show = article.querySelector('div[aria-labelledby] div[role="button"][tabindex="0"]:not([data-testid]) > div[dir] > span > span');
+        if (btn_show) btn_show.click();
       }
       let imgs = article.querySelectorAll('a[href*="/photo/"]');
       if (imgs.length > 1) {
-        let status_id = article.querySelector('a[href*="/status/"]').href.split('/status/').pop().split('/').shift();
-        let btn_group = article.querySelector('div[role="group"]:last-of-type');
-        let btn_share = Array.from(btn_group.querySelectorAll(':scope>div>div')).pop().parentNode;
         imgs.forEach(img => {
           let index = img.href.split('/status/').pop().split('/').pop();
-          let is_exist = history.indexOf(status_id) >= 0;
-          let btn_down = document.createElement('div');
-          btn_down.innerHTML = '<div><div><svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">' + this.svg + '</svg></div></div>';
-          btn_down.classList.add('tmd-down', 'tmd-img');
-          this.status(btn_down, 'download');
-          img.parentNode.appendChild(btn_down);
-          btn_down.onclick = e => {
+          let btn_img = document.createElement('div');
+          btn_img.innerHTML = '<div><div><svg viewBox="0 0 24 24" style="width: 18px; height: 18px;">' + this.svg + '</svg></div></div>';
+          btn_img.classList.add('tmd-down', 'tmd-img');
+          this.status(btn_img, 'download');
+          img.parentNode.appendChild(btn_img);
+          btn_img.onclick = e => {
             e.preventDefault();
-            this.click(btn_down, status_id, is_exist, index);
+            this.click(btn_img, status_id, is_exist, index);
           }
         });
       }
@@ -151,11 +170,11 @@ const TMD = (function () {
       let json = await this.fetchJson(status_id);
       let tweet = json.legacy;
       let user = json.core.user_results.result.legacy;
-      let invalid_chars = {'\\': '\', '\/': '/', '\|': '|', '<': '<', '>': '>', ':': ':', '*': '*', '?': '?', '"': '"', '\u200b': '', '\u200c': '', '\u200d': '', '\u2060': '', '\ufeff': '', '': ''};
+      let invalid_chars = {'\\': '\uFF3C', '\/': '\uFF0F', '\|': '\uFF5C', '<': '\uFF1C', '>': '\uFF1E', ':': '\uFF1A', '*': '\uFF0A', '?': '\uFF1F', '"': '\uFF02', '\u200b': '', '\u200c': '', '\u200d': '', '\u2060': '', '\ufeff': '', '\uD83D\uDD1E': ''};
       let datetime = out.match(/{date-time(-local)?:[^{}]+}/) ? out.match(/{date-time(?:-local)?:([^{}]+)}/)[1].replace(/[\\/|<>*?:"]/g, v => invalid_chars[v]) : 'YYYYMMDD-hhmmss';
       let info = {};
       info['status-id'] = status_id;
-      info['user-name'] = user.name.replace(/([\\/|*?:"]|[\u200b-\u200d\u2060\ufeff]|)/g, v => invalid_chars[v]);
+      info['user-name'] = user.name.replace(/([\\/|*?:"]|[\u200b-\u200d\u2060\ufeff]|\uD83D\uDD1E)/g, v => invalid_chars[v]);
       info['user-id'] = user.screen_name;
       info['date-time'] = this.formatDate(tweet.created_at, datetime);
       info['date-time-local'] = this.formatDate(tweet.created_at, datetime, true);
@@ -218,13 +237,15 @@ const TMD = (function () {
           if (tag == 'input') {
             if (content == 'checkbox') el.type = content;
             else el.value = content;
+          } else if (tag == 'textarea') {
+            el.value = content;
           } else el.innerHTML = content;
         }
         if (css) css.split(' ').forEach(c => el.classList.add(c));
         parent.appendChild(el);
         return el;
       };
-      let wapper = $element(document.body, 'div', 'position: fixed; left: 0px; top: 0px; width: 100%; height: 100%; background-color: #0009; z-index: 10;');
+      let wapper = $element(document.body, 'div', null, null, 'tmd-settings-backdrop');
       let wapper_close;
       wapper.onmousedown = e => {
         wapper_close = e.target == wapper;
@@ -232,41 +253,55 @@ const TMD = (function () {
       wapper.onmouseup = e => {
         if (wapper_close && e.target == wapper) wapper.remove();
       };
-      let dialog = $element(wapper, 'div', 'position: absolute; left: 50%; top: 50%; transform: translateX(-50%) translateY(-50%); width: fit-content; width: -moz-fit-content; background-color: #f3f3f3; border: 1px solid #ccc; border-radius: 10px; color: black;');
-      let title = $element(dialog, 'h3', 'margin: 10px 20px;', lang.dialog.title);
-      let options = $element(dialog, 'div', 'margin: 10px; border: 1px solid #ccc; border-radius: 5px;');
-      let save_history_label = $element(options, 'label', 'display: block; margin: 10px;', lang.dialog.save_history);
-      let save_history_input = $element(save_history_label, 'input', 'float: left;', 'checkbox');
+      let dialog = $element(wapper, 'div', null, null, 'tmd-settings');
+      let header = $element(dialog, 'div', null, null, 'tmd-settings-header');
+      let title = $element(header, 'h3', null, lang.dialog.title, 'tmd-settings-title');
+      let btn_save = $element(header, 'button', null, lang.dialog.save, 'tmd-btn');
+      btn_save.type = 'button';
+
+      let options = $element(dialog, 'div', null, null, 'tmd-settings-section');
+      let save_history_row = $element(options, 'label', null, null, 'tmd-settings-row');
+      let save_history_text = $element(save_history_row, 'span', null, lang.dialog.save_history, 'tmd-settings-label');
+      let save_history_actions = $element(save_history_row, 'span', null, null, 'tmd-settings-actions');
+      let clear_history = $element(save_history_actions, 'button', null, lang.dialog.clear_history.replace(/^\(|\)$/g, '') || lang.dialog.clear_history, 'tmd-btn-ghost');
+      clear_history.type = 'button';
+      let save_history_input = $element(save_history_actions, 'input', null, 'checkbox', 'tmd-switch');
       save_history_input.checked = await GM_getValue('save_history', true);
       save_history_input.onchange = () => {
         GM_setValue('save_history', save_history_input.checked);
-      }
-      let clear_history = $element(save_history_label, 'label', 'display: inline-block; margin: 0 10px; color: blue;', lang.dialog.clear_history);
-      clear_history.onclick = () => {
+      };
+      clear_history.onclick = e => {
+        e.preventDefault();
+        e.stopPropagation();
         if (confirm(lang.dialog.clear_confirm)) {
           history = [];
           GM_setValue('download_history', []);
         }
       };
-      let show_sensitive_label = $element(options, 'label', 'display: block; margin: 10px;', lang.dialog.show_sensitive);
-      let show_sensitive_input = $element(show_sensitive_label, 'input', 'float: left;', 'checkbox');
+
+      let show_sensitive_row = $element(options, 'label', null, null, 'tmd-settings-row');
+      $element(show_sensitive_row, 'span', null, lang.dialog.show_sensitive, 'tmd-settings-label');
+      let show_sensitive_input = $element(show_sensitive_row, 'input', null, 'checkbox', 'tmd-switch');
       show_sensitive_input.checked = await GM_getValue('show_sensitive', false);
       show_sensitive_input.onchange = () => {
         show_sensitive = show_sensitive_input.checked;
         GM_setValue('show_sensitive', show_sensitive);
       };
-      let filename_div = $element(dialog, 'div', 'margin: 10px; border: 1px solid #ccc; border-radius: 5px;');
-      let filename_label = $element(filename_div, 'label', 'display: block; margin: 10px 15px;', lang.dialog.pattern);
-      let filename_input = $element(filename_label, 'textarea', 'display: block; min-width: 500px; max-width: 500px; min-height: 100px; font-size: inherit; background: white; color: black;', await GM_getValue('filename', filename));
-      let filename_tags = $element(filename_div, 'label', 'display: table; margin: 10px;', `
-<span class="tmd-tag" title="user name">{user-name}</span>
-<span class="tmd-tag" title="The user name after @ sign.">{user-id}</span>
-<span class="tmd-tag" title="example: 1234567890987654321">{status-id}</span>
-<span class="tmd-tag" title="{date-time} : Posted time in UTC.\n{date-time-local} : Your local time zone.\n\nDefault:\nYYYYMMDD-hhmmss => 20201231-235959\n\nExample of custom:\n{date-time:DD-MMM-YY hh.mm} => 31-DEC-21 23.59">{date-time}</span><br>
-<span class="tmd-tag" title="Text content in tweet.">{full-text}</span>
-<span class="tmd-tag" title="Type of &#34;video&#34; or &#34;photo&#34; or &#34;gif&#34;.">{file-type}</span>
-<span class="tmd-tag" title="Original filename from URL.">{file-name}</span>
-`);
+
+      let filename_div = $element(dialog, 'div', null, null, 'tmd-settings-section');
+      let filename_label = $element(filename_div, 'label', null, lang.dialog.pattern, 'tmd-settings-field-label');
+      let filename_input = $element(filename_div, 'textarea', null, await GM_getValue('filename', filename), 'tmd-settings-textarea');
+      filename_label.setAttribute('for', 'tmd-filename');
+      filename_input.id = 'tmd-filename';
+      let filename_tags = $element(filename_div, 'div', null, `
+<button type="button" class="tmd-tag" title="user name">{user-name}</button>
+<button type="button" class="tmd-tag" title="The user name after @ sign.">{user-id}</button>
+<button type="button" class="tmd-tag" title="example: 1234567890987654321">{status-id}</button>
+<button type="button" class="tmd-tag" title="{date-time} : Posted time in UTC.\n{date-time-local} : Your local time zone.\n\nDefault:\nYYYYMMDD-hhmmss => 20201231-235959\n\nExample of custom:\n{date-time:DD-MMM-YY hh.mm} => 31-DEC-21 23.59">{date-time}</button>
+<button type="button" class="tmd-tag" title="Text content in tweet.">{full-text}</button>
+<button type="button" class="tmd-tag" title="Type of &#34;video&#34; or &#34;photo&#34; or &#34;gif&#34;.">{file-type}</button>
+<button type="button" class="tmd-tag" title="Original filename from URL.">{file-name}</button>
+`, 'tmd-settings-tags');
       filename_input.selectionStart = filename_input.value.length;
       filename_tags.querySelectorAll('.tmd-tag').forEach(tag => {
         tag.onclick = () => {
@@ -278,7 +313,6 @@ const TMD = (function () {
           filename_input.focus();
         };
       });
-      let btn_save = $element(title, 'label', 'float: right;', lang.dialog.save, 'tmd-btn');
       btn_save.onclick = async () => {
         await GM_setValue('filename', filename_input.value);
         wapper.remove();
@@ -488,10 +522,30 @@ const TMD = (function () {
 .tmd-down.download g.download, .tmd-down.completed g.completed, .tmd-down.loading g.loading,.tmd-down.failed g.failed {display: unset;}
 .tmd-down.loading svg {animation: spin 1s linear infinite;}
 @keyframes spin {0% {transform: rotate(0deg);} 100% {transform: rotate(360deg);}}
-.tmd-btn {display: inline-block; background-color: #1DA1F2; color: #FFFFFF; padding: 0 20px; border-radius: 99px;}
-.tmd-tag {display: inline-block; background-color: #FFFFFF; color: #1DA1F2; padding: 0 10px; border-radius: 10px; border: 1px solid #1DA1F2;  font-weight: bold; margin: 5px;}
-.tmd-btn:hover {background-color: rgba(29, 161, 242, 0.9);}
-.tmd-tag:hover {background-color: rgba(29, 161, 242, 0.1);}
+.tmd-btn {appearance: none; border: 0; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; background: #1d9bf0; color: #fff; font: 600 14px/1.2 system-ui, -apple-system, sans-serif; padding: 8px 18px; border-radius: 999px;}
+.tmd-btn:hover {background: #1a8cd8;}
+.tmd-btn-ghost {appearance: none; border: 0; cursor: pointer; background: transparent; color: #1d9bf0; font: 500 13px/1.2 system-ui, -apple-system, sans-serif; padding: 4px 8px; border-radius: 6px;}
+.tmd-btn-ghost:hover {background: rgba(29,155,240,0.12);}
+.tmd-tag {appearance: none; cursor: pointer; display: inline-flex; align-items: center; background: #202327; color: #e7e9ea; padding: 5px 10px; border-radius: 999px; border: 1px solid #2f3336; font: 600 12px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; margin: 0;}
+.tmd-tag:hover {border-color: #1d9bf0; color: #1d9bf0; background: rgba(29,155,240,0.08);}
+.tmd-settings-backdrop {position: fixed; inset: 0; z-index: 10000; display: flex; align-items: center; justify-content: center; padding: 24px; background: rgba(0,0,0,0.65); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px); font-family: system-ui, -apple-system, "Segoe UI", sans-serif; color: #e7e9ea;}
+.tmd-settings {width: min(560px, 100%); max-height: min(90vh, 720px); overflow: auto; background: #16181c; border: 1px solid #2f3336; border-radius: 16px; box-shadow: 0 24px 80px rgba(0,0,0,0.55); color: #e7e9ea;}
+.tmd-settings-header {display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 18px 20px; border-bottom: 1px solid #2f3336; position: sticky; top: 0; background: #16181c; z-index: 1;}
+.tmd-settings-title {margin: 0; font-size: 20px; font-weight: 700; letter-spacing: -0.02em; color: #e7e9ea;}
+.tmd-settings-section {margin: 16px 20px; padding: 4px 0; border: 1px solid #2f3336; border-radius: 12px; background: #0f1419;}
+.tmd-settings-row {display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; cursor: pointer;}
+.tmd-settings-row + .tmd-settings-row {border-top: 1px solid #2f3336;}
+.tmd-settings-label {font-size: 15px; font-weight: 500; color: #e7e9ea;}
+.tmd-settings-actions {display: inline-flex; align-items: center; gap: 8px; flex-shrink: 0;}
+.tmd-settings-field-label {display: block; padding: 14px 16px 8px; font-size: 13px; font-weight: 600; color: #71767b; text-transform: uppercase; letter-spacing: 0.04em;}
+.tmd-settings-textarea {display: block; width: calc(100% - 32px); margin: 0 16px 12px; box-sizing: border-box; min-height: 96px; resize: vertical; border: 1px solid #2f3336; border-radius: 10px; background: #000; color: #e7e9ea; font: 13px/1.45 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; padding: 12px 14px; outline: none;}
+.tmd-settings-textarea:focus {border-color: #1d9bf0; box-shadow: 0 0 0 1px #1d9bf0;}
+.tmd-settings-tags {display: flex; flex-wrap: wrap; gap: 8px; padding: 0 16px 16px;}
+.tmd-switch {appearance: none; width: 42px; height: 24px; margin: 0; border-radius: 999px; background: #333639; border: 0; position: relative; cursor: pointer; transition: background 0.15s ease; flex-shrink: 0;}
+.tmd-switch::after {content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform 0.15s ease;}
+.tmd-switch:checked {background: #1d9bf0;}
+.tmd-switch:checked::after {transform: translateX(18px);}
+.tmd-switch:focus-visible {outline: 2px solid #1d9bf0; outline-offset: 2px;}
 .tmd-notifier {display: none; position: fixed; left: 16px; bottom: 16px; color: #000; background: #fff; border: 1px solid #ccc; border-radius: 8px; padding: 4px;}
 .tmd-notifier.running {display: flex; align-items: center;}
 .tmd-notifier label {display: inline-flex; align-items: center; margin: 0 8px;}
