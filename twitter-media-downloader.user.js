@@ -1,13 +1,7 @@
 // ==UserScript==
 // @name        Twitter Media Downloader
-// @name:ja     Twitter Media Downloader
-// @name:zh-cn  Twitter 媒体下载
-// @name:zh-tw  Twitter 媒體下載
-// @description    Save Video/Photo by One-Click.
-// @description:ja ワンクリックで動画・画像を保存する。
-// @description:zh-cn 一键保存视频/图片
-// @description:zh-tw 一鍵保存視頻/圖片
-// @version     1.50
+// @description Save Video/Photo by One-Click.
+// @version     1.55
 // @author      AMANE
 // @namespace   none
 // @match       https://x.com/*
@@ -101,6 +95,21 @@ const TMD = (function () {
     return new Promise(resolve => setTimeout(resolve, ms));
   }
 
+  const LIMIT_DEFAULTS = {
+    download_max_threads: 2,
+    download_max_retries: 2,
+    download_throttle_after: 3,
+    bulk_hard_cap: 5000,
+    bulk_zip_max_files: 80,
+    bulk_zip_max_mb: 400,
+    bulk_scrape_limit: 50
+  };
+
+  async function getPositiveInt(key, fallback) {
+    let v = parseInt(await GM_getValue(key, fallback), 10);
+    return !isNaN(v) && v > 0 ? v : fallback;
+  }
+
   function syndicationToken(id) {
     return ((Number(id) / 1e15) * Math.PI).toString(36).replace(/(0+|\.)/g, '');
   }
@@ -116,8 +125,9 @@ const TMD = (function () {
 
   return {
     init: async function () {
-      GM_registerMenuCommand((this.language[navigator.language] || this.language.en).settings, this.settings);
-      lang = this.language[document.querySelector('html').lang] || this.language.en;
+      await this.downloader.refreshLimits();
+      lang = this.language.en;
+      GM_registerMenuCommand(lang.settings, this.settings);
       host = location.hostname;
       is_tweetdeck = host.indexOf('tweetdeck') >= 0;
       let obsolete = this.storage_obsolete();
@@ -584,6 +594,34 @@ const TMD = (function () {
         GM_setValue('show_sensitive', show_sensitive);
       };
 
+      let limits = $element(dialog, 'div', null, null, 'tmd-settings-section');
+      $element(limits, 'div', null, lang.dialog.limits_section, 'tmd-settings-field-label');
+
+      let threads_row = $element(limits, 'label', null, null, 'tmd-settings-row');
+      $element(threads_row, 'span', null, lang.dialog.download_max_threads, 'tmd-settings-label');
+      let threads_input = $element(threads_row, 'input', null, await getPositiveInt('download_max_threads', LIMIT_DEFAULTS.download_max_threads), 'tmd-settings-number');
+      threads_input.type = 'number';
+      threads_input.min = '1';
+
+      let retries_row = $element(limits, 'label', null, null, 'tmd-settings-row');
+      $element(retries_row, 'span', null, lang.dialog.download_max_retries, 'tmd-settings-label');
+      let retries_input = $element(retries_row, 'input', null, await getPositiveInt('download_max_retries', LIMIT_DEFAULTS.download_max_retries), 'tmd-settings-number');
+      retries_input.type = 'number';
+      retries_input.min = '1';
+
+      let throttle_row = $element(limits, 'label', null, null, 'tmd-settings-row');
+      $element(throttle_row, 'span', null, lang.dialog.download_throttle_after, 'tmd-settings-label');
+      let throttle_input = $element(throttle_row, 'input', null, await getPositiveInt('download_throttle_after', LIMIT_DEFAULTS.download_throttle_after), 'tmd-settings-number');
+      throttle_input.type = 'number';
+      throttle_input.min = '1';
+      throttle_input.title = lang.dialog.download_throttle_after_hint || '';
+
+      let hard_cap_row = $element(limits, 'label', null, null, 'tmd-settings-row');
+      $element(hard_cap_row, 'span', null, lang.dialog.bulk_hard_cap, 'tmd-settings-label');
+      let hard_cap_input = $element(hard_cap_row, 'input', null, await getPositiveInt('bulk_hard_cap', LIMIT_DEFAULTS.bulk_hard_cap), 'tmd-settings-number');
+      hard_cap_input.type = 'number';
+      hard_cap_input.min = '1';
+
       let bulk = $element(dialog, 'div', null, null, 'tmd-settings-section');
       $element(bulk, 'div', null, lang.dialog.bulk_section, 'tmd-settings-field-label');
 
@@ -601,19 +639,24 @@ const TMD = (function () {
 
       let bulk_files_row = $element(bulk, 'label', null, null, 'tmd-settings-row');
       $element(bulk_files_row, 'span', null, lang.dialog.bulk_zip_max_files, 'tmd-settings-label');
-      let bulk_files_input = $element(bulk_files_row, 'input', null, await GM_getValue('bulk_zip_max_files', 80), 'tmd-settings-number');
+      let bulk_files_input = $element(bulk_files_row, 'input', null, await getPositiveInt('bulk_zip_max_files', LIMIT_DEFAULTS.bulk_zip_max_files), 'tmd-settings-number');
       bulk_files_input.type = 'number';
       bulk_files_input.min = '1';
 
       let bulk_mb_row = $element(bulk, 'label', null, null, 'tmd-settings-row');
       $element(bulk_mb_row, 'span', null, lang.dialog.bulk_zip_max_mb, 'tmd-settings-label');
-      let bulk_mb_input = $element(bulk_mb_row, 'input', null, await GM_getValue('bulk_zip_max_mb', 400), 'tmd-settings-number');
+      let bulk_mb_input = $element(bulk_mb_row, 'input', null, await getPositiveInt('bulk_zip_max_mb', LIMIT_DEFAULTS.bulk_zip_max_mb), 'tmd-settings-number');
       bulk_mb_input.type = 'number';
       bulk_mb_input.min = '1';
 
+      let bulk_limit_enable_row = $element(bulk, 'label', null, null, 'tmd-settings-row');
+      $element(bulk_limit_enable_row, 'span', null, lang.dialog.bulk_scrape_limit_enabled, 'tmd-settings-label');
+      let bulk_limit_enable_input = $element(bulk_limit_enable_row, 'input', null, 'checkbox', 'tmd-switch');
+      bulk_limit_enable_input.checked = await GM_getValue('bulk_scrape_limit_enabled', false);
+
       let bulk_limit_row = $element(bulk, 'label', null, null, 'tmd-settings-row');
       $element(bulk_limit_row, 'span', null, lang.dialog.bulk_scrape_limit, 'tmd-settings-label');
-      let bulk_limit_input = $element(bulk_limit_row, 'input', null, await GM_getValue('bulk_scrape_limit', 50), 'tmd-settings-number');
+      let bulk_limit_input = $element(bulk_limit_row, 'input', null, await getPositiveInt('bulk_scrape_limit', LIMIT_DEFAULTS.bulk_scrape_limit), 'tmd-settings-number');
       bulk_limit_input.type = 'number';
       bulk_limit_input.min = '1';
 
@@ -622,12 +665,18 @@ const TMD = (function () {
       let bulk_redownload_input = $element(bulk_redownload_row, 'input', null, 'checkbox', 'tmd-switch');
       bulk_redownload_input.checked = await GM_getValue('bulk_redownload', false);
 
+      let bulk_manual_row = $element(bulk, 'label', null, null, 'tmd-settings-row');
+      $element(bulk_manual_row, 'span', null, lang.dialog.bulk_manual_scroll, 'tmd-settings-label');
+      let bulk_manual_input = $element(bulk_manual_row, 'input', null, 'checkbox', 'tmd-switch');
+      bulk_manual_input.checked = await GM_getValue('bulk_manual_scroll', false);
+
       const syncBulkUi = () => {
         let zipOn = bulk_zip_input.checked;
         bulk_chunk_row.style.display = zipOn ? '' : 'none';
         bulk_files_row.style.display = zipOn && bulk_chunk_input.checked ? '' : 'none';
         bulk_mb_row.style.display = zipOn && bulk_chunk_input.checked ? '' : 'none';
         bulk_warn.style.display = zipOn && !bulk_chunk_input.checked ? '' : 'none';
+        bulk_limit_row.style.display = bulk_limit_enable_input.checked ? '' : 'none';
       };
       bulk_zip_input.onchange = () => {
         GM_setValue('bulk_zip', bulk_zip_input.checked);
@@ -637,8 +686,15 @@ const TMD = (function () {
         GM_setValue('bulk_zip_chunk', bulk_chunk_input.checked);
         syncBulkUi();
       };
+      bulk_limit_enable_input.onchange = () => {
+        GM_setValue('bulk_scrape_limit_enabled', bulk_limit_enable_input.checked);
+        syncBulkUi();
+      };
       bulk_redownload_input.onchange = () => {
         GM_setValue('bulk_redownload', bulk_redownload_input.checked);
+      };
+      bulk_manual_input.onchange = () => {
+        GM_setValue('bulk_manual_scroll', bulk_manual_input.checked);
       };
       syncBulkUi();
 
@@ -669,12 +725,20 @@ const TMD = (function () {
       });
       btn_save.onclick = async () => {
         await GM_setValue('filename', filename_input.value);
-        let maxFiles = parseInt(bulk_files_input.value, 10);
-        let maxMb = parseInt(bulk_mb_input.value, 10);
-        let scrapeLimit = parseInt(bulk_limit_input.value, 10);
-        if (!isNaN(maxFiles) && maxFiles > 0) await GM_setValue('bulk_zip_max_files', maxFiles);
-        if (!isNaN(maxMb) && maxMb > 0) await GM_setValue('bulk_zip_max_mb', maxMb);
-        if (!isNaN(scrapeLimit) && scrapeLimit > 0) await GM_setValue('bulk_scrape_limit', scrapeLimit);
+        const savePositive = async (input, key) => {
+          let v = parseInt(input.value, 10);
+          if (!isNaN(v) && v > 0) await GM_setValue(key, v);
+        };
+        await savePositive(threads_input, 'download_max_threads');
+        await savePositive(retries_input, 'download_max_retries');
+        await savePositive(throttle_input, 'download_throttle_after');
+        await savePositive(hard_cap_input, 'bulk_hard_cap');
+        await savePositive(bulk_files_input, 'bulk_zip_max_files');
+        await savePositive(bulk_mb_input, 'bulk_zip_max_mb');
+        await GM_setValue('bulk_scrape_limit_enabled', bulk_limit_enable_input.checked);
+        await savePositive(bulk_limit_input, 'bulk_scrape_limit');
+        await GM_setValue('bulk_manual_scroll', bulk_manual_input.checked);
+        await TMD.downloader.refreshLimits();
         wapper.remove();
       };
     },
@@ -827,11 +891,13 @@ const TMD = (function () {
     },
     bulk: (function () {
       let bar, fab, statusEl, fabStatusEl, startBtn, stopBtn, hideBtn, optsEl;
-      let zipInput, chunkInput, redownloadInput, filesInput, mbInput, limitInput, warnEl, chunkFields;
+      let zipInput, chunkInput, redownloadInput, filesInput, mbInput, limitEnabledInput, limitInput, limitFields, warnEl, chunkFields, manualInput;
       let running = false;
       let abort = false;
       let collapsed = false;
       let lastPath = '';
+      let phase = 'idle'; // idle | collect-manual | collect-auto | download
+      let manualProceed = false;
 
       function setStatus(text) {
         if (statusEl) statusEl.textContent = text || '';
@@ -868,15 +934,30 @@ const TMD = (function () {
         applyCollapsed();
       }
 
-      function setRunning(isRunning) {
+      function updateStartLabel(foundCount) {
+        if (!startBtn) return;
+        if (phase === 'collect-manual') {
+          startBtn.textContent = (lang.bulk.download_found || 'Download {n} found')
+            .replace('{n}', String(foundCount != null ? foundCount : 0));
+          return;
+        }
+        if (running) return;
+        let manual = !!(manualInput && manualInput.checked);
+        startBtn.textContent = manual ? (lang.bulk.watch || 'Watch while I scroll') : lang.bulk.start;
+      }
+
+      function setRunning(isRunning, mode) {
         running = isRunning;
-        if (startBtn) startBtn.disabled = isRunning;
+        phase = isRunning ? (mode || 'download') : 'idle';
+        let allowStart = mode === 'collect-manual';
+        if (startBtn) startBtn.disabled = isRunning && !allowStart;
         if (stopBtn) stopBtn.disabled = !isRunning;
         if (hideBtn) hideBtn.disabled = false;
-        [zipInput, chunkInput, redownloadInput, filesInput, mbInput, limitInput].forEach(el => {
+        [zipInput, chunkInput, redownloadInput, filesInput, mbInput, limitEnabledInput, limitInput, manualInput].forEach(el => {
           if (el) el.disabled = isRunning;
         });
         if (fab) fab.classList.toggle('tmd-bulk-fab-running', isRunning);
+        if (!isRunning) updateStartLabel();
       }
 
       function syncOptUi() {
@@ -885,6 +966,16 @@ const TMD = (function () {
         if (chunkInput) chunkInput.closest('.tmd-bulk-opt').style.display = zipOn ? '' : 'none';
         if (chunkFields) chunkFields.style.display = zipOn && chunkInput.checked ? '' : 'none';
         if (warnEl) warnEl.style.display = zipOn && !chunkInput.checked ? '' : 'none';
+        if (limitFields) limitFields.style.display = limitEnabledInput && limitEnabledInput.checked ? '' : 'none';
+        if (optsEl) {
+          let hint = optsEl.querySelector('.tmd-bulk-hint');
+          if (hint) {
+            hint.textContent = (manualInput && manualInput.checked)
+              ? (lang.bulk.opts_hint_manual || lang.bulk.opts_hint)
+              : lang.bulk.opts_hint;
+          }
+        }
+        if (!running) updateStartLabel();
       }
 
       async function loadOptDefaults() {
@@ -892,9 +983,11 @@ const TMD = (function () {
         zipInput.checked = await GM_getValue('bulk_zip', true);
         chunkInput.checked = await GM_getValue('bulk_zip_chunk', true);
         redownloadInput.checked = await GM_getValue('bulk_redownload', false);
-        filesInput.value = await GM_getValue('bulk_zip_max_files', 80);
-        mbInput.value = await GM_getValue('bulk_zip_max_mb', 400);
-        limitInput.value = await GM_getValue('bulk_scrape_limit', 50);
+        filesInput.value = await getPositiveInt('bulk_zip_max_files', LIMIT_DEFAULTS.bulk_zip_max_files);
+        mbInput.value = await getPositiveInt('bulk_zip_max_mb', LIMIT_DEFAULTS.bulk_zip_max_mb);
+        limitEnabledInput.checked = await GM_getValue('bulk_scrape_limit_enabled', false);
+        limitInput.value = await getPositiveInt('bulk_scrape_limit', LIMIT_DEFAULTS.bulk_scrape_limit);
+        if (manualInput) manualInput.checked = await GM_getValue('bulk_manual_scroll', false);
         syncOptUi();
       }
 
@@ -906,9 +999,11 @@ const TMD = (function () {
           zip: !!(zipInput && zipInput.checked),
           chunk: !!(chunkInput && chunkInput.checked),
           redownload: !!(redownloadInput && redownloadInput.checked),
-          maxFiles: !isNaN(maxFiles) && maxFiles > 0 ? maxFiles : 80,
-          maxMb: !isNaN(maxMb) && maxMb > 0 ? maxMb : 400,
-          limit: !isNaN(limit) && limit > 0 ? limit : 50
+          maxFiles: !isNaN(maxFiles) && maxFiles > 0 ? maxFiles : LIMIT_DEFAULTS.bulk_zip_max_files,
+          maxMb: !isNaN(maxMb) && maxMb > 0 ? maxMb : LIMIT_DEFAULTS.bulk_zip_max_mb,
+          limitEnabled: !!(limitEnabledInput && limitEnabledInput.checked),
+          limit: !isNaN(limit) && limit > 0 ? limit : LIMIT_DEFAULTS.bulk_scrape_limit,
+          manual: !!(manualInput && manualInput.checked)
         };
       }
 
@@ -919,6 +1014,177 @@ const TMD = (function () {
             seen.add(id);
             ids.push(id);
           }
+        });
+      }
+
+      function isWindowScroller(root) {
+        return !root || root === document.documentElement || root === document.body || root === document.scrollingElement;
+      }
+
+      function getScrollRoot() {
+        let best = document.scrollingElement || document.documentElement;
+        let bestDelta = (best.scrollHeight || 0) - (best.clientHeight || 0);
+        let consider = (el) => {
+          if (!el) return;
+          let delta = (el.scrollHeight || 0) - (el.clientHeight || 0);
+          if (delta > bestDelta + 40) {
+            best = el;
+            bestDelta = delta;
+          }
+        };
+        consider(document.querySelector('[data-testid="primaryColumn"]'));
+        consider(document.querySelector('main[role="main"]'));
+        consider(document.querySelector('main'));
+        let item = document.querySelector('li[role="listitem"]');
+        if (item) {
+          let p = item.parentElement;
+          while (p && p !== document.body) {
+            let st = window.getComputedStyle(p);
+            if ((st.overflowY === 'auto' || st.overflowY === 'scroll' || st.overflowY === 'overlay') &&
+                p.scrollHeight > p.clientHeight + 80) {
+              consider(p);
+            }
+            p = p.parentElement;
+          }
+        }
+        return best;
+      }
+
+      function getScrollTop(root) {
+        return isWindowScroller(root) ? (window.scrollY || window.pageYOffset || 0) : root.scrollTop;
+      }
+
+      function getClientHeight(root) {
+        return isWindowScroller(root) ? window.innerHeight : root.clientHeight;
+      }
+
+      function getScrollHeight(root) {
+        if (isWindowScroller(root)) {
+          return Math.max(
+            document.documentElement.scrollHeight || 0,
+            document.body ? document.body.scrollHeight : 0,
+            root.scrollHeight || 0
+          );
+        }
+        return root.scrollHeight || 0;
+      }
+
+      function scrollToY(root, y) {
+        if (isWindowScroller(root)) window.scrollTo(0, y);
+        else root.scrollTo(0, y);
+      }
+
+      function scrollByY(root, y) {
+        if (isWindowScroller(root)) window.scrollBy(0, y);
+        else root.scrollBy(0, y);
+      }
+
+      function isNearBottom(root, pad) {
+        pad = pad == null ? 400 : pad;
+        return getScrollTop(root) + getClientHeight(root) >= getScrollHeight(root) - pad;
+      }
+
+      async function collectIdsAuto(limit, onProgress) {
+        let seen = new Set();
+        let ids = [];
+        let root = getScrollRoot();
+        scrollToY(root, 0);
+        await sleep(300);
+        let idleRounds = 0;
+        let bottomStreak = 0;
+        const MAX_IDLE = 28;
+        const MAX_BOTTOM = 14;
+
+        while (!abort && ids.length < limit) {
+          root = getScrollRoot();
+          let before = ids.length;
+          let beforeH = getScrollHeight(root);
+          scanIds(seen, ids);
+          if (ids.length > limit) ids.length = limit;
+          onProgress(ids.length);
+          if (ids.length >= limit) break;
+
+          let items = document.querySelectorAll('li[role="listitem"]');
+          let last = items[items.length - 1];
+          if (last) {
+            try { last.scrollIntoView({ block: 'end', inline: 'nearest' }); } catch (e) { /* ignore */ }
+          }
+          scrollByY(root, Math.max(getClientHeight(root) * 1.6, 1600));
+
+          let grew = false;
+          for (let i = 0; i < 5 && !abort; i++) {
+            await sleep(160);
+            scanIds(seen, ids);
+            if (ids.length > limit) ids.length = limit;
+            if (ids.length > before || getScrollHeight(root) > beforeH + 40) {
+              grew = true;
+              break;
+            }
+          }
+          onProgress(ids.length);
+          if (ids.length >= limit) break;
+
+          if (grew) {
+            idleRounds = 0;
+            bottomStreak = 0;
+            continue;
+          }
+
+          idleRounds += 1;
+          scrollToY(root, getScrollHeight(root));
+          await sleep(450);
+          scanIds(seen, ids);
+          if (ids.length > limit) ids.length = limit;
+          if (ids.length > before) {
+            idleRounds = 0;
+            bottomStreak = 0;
+            onProgress(ids.length);
+            continue;
+          }
+          scrollByY(root, 2400);
+          await sleep(500);
+          scanIds(seen, ids);
+          if (ids.length > limit) ids.length = limit;
+          onProgress(ids.length);
+          if (ids.length > before) {
+            idleRounds = 0;
+            bottomStreak = 0;
+            continue;
+          }
+          if (isNearBottom(root, 500)) bottomStreak += 1;
+          else bottomStreak = 0;
+          if (bottomStreak >= MAX_BOTTOM || idleRounds >= MAX_IDLE) break;
+        }
+        return ids;
+      }
+
+      async function collectIdsManual(limit, onProgress) {
+        let seen = new Set();
+        let ids = [];
+        return await new Promise(resolve => {
+          let done = false;
+          const finish = () => {
+            if (done) return;
+            done = true;
+            obs.disconnect();
+            clearInterval(iv);
+            window.removeEventListener('scroll', onScroll, true);
+            document.removeEventListener('scroll', onScroll, true);
+            resolve(ids);
+          };
+          const tick = () => {
+            scanIds(seen, ids);
+            if (ids.length > limit) ids.length = limit;
+            onProgress(ids.length);
+            if (abort || manualProceed || ids.length >= limit) finish();
+          };
+          const onScroll = () => tick();
+          const obs = new MutationObserver(() => tick());
+          obs.observe(document.body, { childList: true, subtree: true });
+          const iv = setInterval(tick, 300);
+          window.addEventListener('scroll', onScroll, { passive: true, capture: true });
+          document.addEventListener('scroll', onScroll, { passive: true, capture: true });
+          tick();
         });
       }
 
@@ -944,7 +1210,11 @@ const TMD = (function () {
                   '<button type="button" class="tmd-btn-ghost tmd-bulk-hide" title=""></button>' +
                 '</div>' +
                 '<div class="tmd-bulk-opts">' +
-                  '<label class="tmd-bulk-opt tmd-bulk-opt-num"><span></span> <input type="number" min="1" class="tmd-settings-number tmd-bulk-limit"></label>' +
+                  '<label class="tmd-bulk-opt"><input type="checkbox" class="tmd-bulk-manual"> <span></span></label>' +
+                  '<label class="tmd-bulk-opt"><input type="checkbox" class="tmd-bulk-limit-enabled"> <span></span></label>' +
+                  '<span class="tmd-bulk-limit-fields">' +
+                    '<label class="tmd-bulk-opt tmd-bulk-opt-num"><span></span> <input type="number" min="1" class="tmd-settings-number tmd-bulk-limit"></label>' +
+                  '</span>' +
                   '<label class="tmd-bulk-opt"><input type="checkbox" class="tmd-bulk-zip"> <span></span></label>' +
                   '<label class="tmd-bulk-opt"><input type="checkbox" class="tmd-bulk-chunk"> <span></span></label>' +
                   '<label class="tmd-bulk-opt"><input type="checkbox" class="tmd-bulk-redownload"> <span></span></label>' +
@@ -977,9 +1247,12 @@ const TMD = (function () {
             redownloadInput = bar.querySelector('.tmd-bulk-redownload');
             filesInput = bar.querySelector('.tmd-bulk-max-files');
             mbInput = bar.querySelector('.tmd-bulk-max-mb');
+            limitEnabledInput = bar.querySelector('.tmd-bulk-limit-enabled');
             limitInput = bar.querySelector('.tmd-bulk-limit');
+            limitFields = bar.querySelector('.tmd-bulk-limit-fields');
             warnEl = bar.querySelector('.tmd-bulk-warn');
             chunkFields = bar.querySelector('.tmd-bulk-chunk-fields');
+            manualInput = bar.querySelector('.tmd-bulk-manual');
             startBtn.onclick = () => TMD.bulk.start();
             stopBtn.onclick = () => TMD.bulk.stop();
             hideBtn.onclick = () => setCollapsed(true);
@@ -988,13 +1261,16 @@ const TMD = (function () {
             };
             zipInput.onchange = syncOptUi;
             chunkInput.onchange = syncOptUi;
+            limitEnabledInput.onchange = syncOptUi;
+            manualInput.onchange = syncOptUi;
           }
-          startBtn.textContent = lang.bulk.start;
           stopBtn.textContent = lang.bulk.stop;
           hideBtn.textContent = lang.bulk.hide;
           hideBtn.title = lang.bulk.hide_title;
           fab.title = lang.bulk.show_title;
           fab.setAttribute('aria-label', lang.bulk.show_title);
+          bar.querySelector('.tmd-bulk-manual + span').textContent = lang.dialog.bulk_manual_scroll;
+          bar.querySelector('.tmd-bulk-limit-enabled + span').textContent = lang.dialog.bulk_scrape_limit_enabled;
           bar.querySelector('.tmd-bulk-limit').previousElementSibling.textContent = lang.dialog.bulk_scrape_limit;
           bar.querySelector('.tmd-bulk-zip + span').textContent = lang.dialog.bulk_zip;
           bar.querySelector('.tmd-bulk-chunk + span').textContent = lang.dialog.bulk_zip_chunk;
@@ -1002,11 +1278,12 @@ const TMD = (function () {
           bar.querySelector('.tmd-bulk-max-files').previousElementSibling.textContent = lang.dialog.bulk_zip_max_files;
           bar.querySelector('.tmd-bulk-max-mb').previousElementSibling.textContent = lang.dialog.bulk_zip_max_mb;
           warnEl.textContent = lang.dialog.bulk_zip_unchunked_warn;
-          bar.querySelector('.tmd-bulk-hint').textContent = lang.bulk.opts_hint;
           if (!running && (lastPath !== location.pathname || !zipInput.dataset.ready)) {
             if (lastPath !== location.pathname) setStatus('');
             loadOptDefaults();
             zipInput.dataset.ready = '1';
+          } else {
+            syncOptUi();
           }
           lastPath = location.pathname;
           applyCollapsed();
@@ -1026,9 +1303,14 @@ const TMD = (function () {
         },
         stop: function () {
           abort = true;
+          if (phase === 'collect-manual') manualProceed = false;
           setStatus(lang.bulk.stopping);
         },
         start: async function () {
+          if (running && phase === 'collect-manual') {
+            manualProceed = true;
+            return;
+          }
           if (running) return;
           if (!isMediaPage()) {
             alert(lang.bulk.need_media);
@@ -1039,35 +1321,39 @@ const TMD = (function () {
           let opts = readRunOptions();
           if (opts.redownload && !confirm(lang.bulk.redownload_confirm)) return;
           abort = false;
-          setRunning(true);
+          manualProceed = false;
           try {
-            let limit = Math.min(opts.limit || 50, 5000);
-            setStatus(lang.bulk.scrolling.replace('{n}', '0').replace('{limit}', String(limit)));
-            let seen = new Set();
-            let ids = [];
-            window.scrollTo(0, 0);
-            await sleep(400);
-            let idleRounds = 0;
-            const MAX_IDLE = 5;
-            while (!abort && ids.length < limit) {
-              let before = ids.length;
-              scanIds(seen, ids);
-              if (ids.length > limit) ids.length = limit;
-              setStatus(lang.bulk.scrolling.replace('{n}', String(ids.length)).replace('{limit}', String(limit)));
-              if (ids.length >= limit) break;
-              window.scrollBy(0, Math.max(400, window.innerHeight * 0.85));
-              await sleep(1600);
-              scanIds(seen, ids);
-              if (ids.length > limit) ids.length = limit;
-              if (ids.length === before) idleRounds += 1;
-              else idleRounds = 0;
-              let nearBottom = (window.innerHeight + window.scrollY) >= (document.documentElement.scrollHeight - 240);
-              if (idleRounds >= MAX_IDLE && nearBottom) break;
-            }
+            const HARD_CAP = await getPositiveInt('bulk_hard_cap', LIMIT_DEFAULTS.bulk_hard_cap);
+            let limitEnabled = !!opts.limitEnabled;
+            let limit = limitEnabled
+              ? Math.min(opts.limit || LIMIT_DEFAULTS.bulk_scrape_limit, HARD_CAP)
+              : HARD_CAP;
+            let collectStatus = (n) => {
+              if (opts.manual) {
+                return limitEnabled
+                  ? lang.bulk.watching.replace('{n}', String(n)).replace('{limit}', String(limit))
+                  : lang.bulk.watching_unlimited.replace('{n}', String(n));
+              }
+              return limitEnabled
+                ? lang.bulk.scrolling.replace('{n}', String(n)).replace('{limit}', String(limit))
+                : lang.bulk.scrolling_unlimited.replace('{n}', String(n));
+            };
+            setRunning(true, opts.manual ? 'collect-manual' : 'collect-auto');
+            setStatus(collectStatus(0));
+            if (opts.manual) updateStartLabel(0);
+
+            let ids = opts.manual
+              ? await collectIdsManual(limit, (n) => {
+                  setStatus(collectStatus(n));
+                  updateStartLabel(n);
+                })
+              : await collectIdsAuto(limit, (n) => setStatus(collectStatus(n)));
+
             if (abort) {
               setStatus(lang.bulk.stopped.replace('{n}', String(ids.length)));
               return;
             }
+            setRunning(true, 'download');
             let targets = opts.redownload ? ids.slice() : ids.filter(id => !historyHas(id));
             if (!targets.length) {
               setStatus(lang.bulk.nothing);
@@ -1079,6 +1365,7 @@ const TMD = (function () {
             console.warn('[TMD] bulk', e);
             setStatus((lang.bulk.failed || 'Failed') + ': ' + (e && e.message ? e.message : 'ERROR'));
           } finally {
+            manualProceed = false;
             setRunning(false);
             abort = false;
           }
@@ -1133,8 +1420,8 @@ const TMD = (function () {
           if (typeof JSZip === 'undefined') throw new Error('JSZIP_MISSING');
           opts = opts || readRunOptions();
           let chunk = !!opts.chunk;
-          let maxFiles = opts.maxFiles || 80;
-          let maxMb = opts.maxMb || 400;
+          let maxFiles = opts.maxFiles || LIMIT_DEFAULTS.bulk_zip_max_files;
+          let maxMb = opts.maxMb || LIMIT_DEFAULTS.bulk_zip_max_mb;
           let maxBytes = maxMb * 1024 * 1024;
           let stamp = TMD.formatDate(new Date().toISOString(), 'YYYYMMDD-hhmmss', true);
           let user = mediaPageUser();
@@ -1143,6 +1430,8 @@ const TMD = (function () {
           let zipBytes = 0;
           let part = 1;
           let usedNames = new Set();
+          let pendingIds = [];
+          let packed = 0;
           let done = 0;
           let failed = 0;
 
@@ -1167,6 +1456,7 @@ const TMD = (function () {
 
           const flushZip = async () => {
             if (zipFiles === 0) return;
+            let toMark = pendingIds.slice();
             let name = chunk
               ? user + '_media_' + stamp + '_part' + part + '.zip'
               : user + '_media_' + stamp + '.zip';
@@ -1188,6 +1478,11 @@ const TMD = (function () {
             });
             setStatus(lang.bulk.zip_saving.replace('{n}', partNum));
             await TMD.saveBlob(blob, name);
+            for (let j = 0; j < toMark.length; j++) {
+              await TMD.markDownloaded(toMark[j]);
+            }
+            done += toMark.length;
+            pendingIds = [];
             part += 1;
             zip = new JSZip();
             zipFiles = 0;
@@ -1199,19 +1494,19 @@ const TMD = (function () {
             if (abort) break;
             let status_id = targets[i];
             setStatus(lang.bulk.downloading
-              .replace('{done}', String(done))
+              .replace('{done}', String(packed))
               .replace('{total}', String(targets.length))
               .replace('{failed}', String(failed)));
             try {
               setStatus(lang.bulk.resolving
-                .replace('{done}', String(done))
+                .replace('{done}', String(packed))
                 .replace('{total}', String(targets.length))
                 .replace('{id}', status_id));
               let resolved = await TMD.resolveTweetMedia(status_id);
               let buffers = [];
               for (let f = 0; f < resolved.files.length; f++) {
                 setStatus(lang.bulk.fetching
-                  .replace('{done}', String(done))
+                  .replace('{done}', String(packed))
                   .replace('{total}', String(targets.length))
                   .replace('{file}', String(f + 1))
                   .replace('{files}', String(resolved.files.length))
@@ -1232,8 +1527,8 @@ const TMD = (function () {
                 zipFiles += 1;
                 zipBytes += b.size;
               });
-              await TMD.markDownloaded(status_id);
-              done += 1;
+              pendingIds.push(status_id);
+              packed += 1;
               if (chunk && (zipFiles >= maxFiles || zipBytes >= maxBytes)) {
                 await flushZip();
               }
@@ -1250,8 +1545,20 @@ const TMD = (function () {
       };
     })(),
     downloader: (function () {
-      let tasks = [], thread = 0, max_thread = 2, retry = 0, max_retry = 2, failed = 0, notifier, has_failed = false;
+      let tasks = [], thread = 0;
+      let max_thread = LIMIT_DEFAULTS.download_max_threads;
+      let configured_max_thread = LIMIT_DEFAULTS.download_max_threads;
+      let retry = 0;
+      let max_retry = LIMIT_DEFAULTS.download_max_retries;
+      let throttle_after = LIMIT_DEFAULTS.download_throttle_after;
+      let failed = 0, notifier, has_failed = false;
       return {
+        refreshLimits: async function () {
+          configured_max_thread = await getPositiveInt('download_max_threads', LIMIT_DEFAULTS.download_max_threads);
+          max_retry = await getPositiveInt('download_max_retries', LIMIT_DEFAULTS.download_max_retries);
+          throttle_after = await getPositiveInt('download_throttle_after', LIMIT_DEFAULTS.download_throttle_after);
+          max_thread = retry >= throttle_after ? 1 : configured_max_thread;
+        },
         add: function (task) {
           tasks.push(task);
           if (thread < max_thread) {
@@ -1289,7 +1596,7 @@ const TMD = (function () {
         },
         retry: function (task, result) {
           retry += 1;
-          if (retry === 3) max_thread = 1;
+          if (retry === throttle_after) max_thread = 1;
           if (task.retry && task.retry >= max_retry ||
               result.details && result.details.current === 'USER_CANCELED') {
             task.onerror(result);
@@ -1332,80 +1639,24 @@ const TMD = (function () {
         download: 'Download', completed: 'Download Completed', settings: 'Settings',
         dialog: {
           title: 'Download Settings', save: 'Save', save_history: 'Remember download history', clear_history: '(Clear)', clear_confirm: 'Clear download history?', show_sensitive: 'Always show sensitive content', pattern: 'File Name Pattern',
-          bulk_section: 'Bulk media page', bulk_zip: 'Download as ZIP', bulk_zip_chunk: 'Split ZIP into chunks', bulk_zip_unchunked_warn: 'One large ZIP can freeze or crash the tab on big accounts.', bulk_zip_max_files: 'Max files per ZIP', bulk_zip_max_mb: 'Max MB per ZIP', bulk_scrape_limit: 'Scrape limit', bulk_redownload: 'Also re-download already completed'
+          limits_section: 'Download limits', download_max_threads: 'Concurrent downloads', download_max_retries: 'Retries per file', download_throttle_after: 'Slow down after N errors', download_throttle_after_hint: 'After this many download errors, concurrency drops to 1.', bulk_hard_cap: 'Max items per bulk run',
+          bulk_section: 'Bulk media page', bulk_zip: 'Download as ZIP', bulk_zip_chunk: 'Split ZIP into chunks', bulk_zip_unchunked_warn: 'One large ZIP can freeze or crash the tab on big accounts.', bulk_zip_max_files: 'Max files per ZIP', bulk_zip_max_mb: 'Max MB per ZIP', bulk_scrape_limit_enabled: 'Limit scrape count', bulk_scrape_limit: 'Scrape limit', bulk_redownload: 'Also re-download already completed', bulk_manual_scroll: 'I\'ll scroll myself'
         },
         bulk: {
-          menu: 'Bulk download media page', start: 'Download all', stop: 'Stop', need_media: 'Open a profile Media tab first.',
+          menu: 'Bulk download media page', start: 'Download all', watch: 'Watch while I scroll', download_found: 'Download {n} found', stop: 'Stop', need_media: 'Open a profile Media tab first.',
           hide: 'Hide', hide_title: 'Hide bulk panel', show: 'Bulk download', show_title: 'Show bulk download panel',
           opts_hint: 'These options apply to this run only. Defaults come from Settings.',
+          opts_hint_manual: 'Scroll until you reach the bottom (or your limit). The count updates live - then click Download N found.',
           redownload_confirm: 'Re-download is on. Previously completed tweets will be fetched again. Continue?',
-          scrolling: 'Scrolling… {n}/{limit} found', nothing: 'Nothing to download', stopping: 'Stopping…',
+          scrolling: 'Scrolling… {n}/{limit} found', scrolling_unlimited: 'Scrolling… {n} found',
+          watching: 'Scroll freely… {n}/{limit} found - click Download when ready', watching_unlimited: 'Scroll freely… {n} found - click Download when ready',
+          nothing: 'Nothing to download', stopping: 'Stopping…',
           downloading: 'Downloading {done}/{total} (failed {failed})',
           resolving: 'Resolving {done}/{total}… ({id})',
           fetching: 'Fetching media {done}/{total} - file {file}/{files} (failed {failed})',
           zipping: 'Building ZIP part {n}… {pct}% ({files} files)',
           zip_saving: 'Writing ZIP part {n} to disk…',
           done: 'Done: {n} saved, {failed} failed', stopped: 'Stopped after {n}', failed: 'Failed'
-        }
-      },
-      ja: {
-        download: 'ダウンロード', completed: 'ダウンロード完了', settings: '設定',
-        dialog: {
-          title: 'ダウンロード設定', save: '保存', save_history: 'ダウンロード履歴を保存する', clear_history: '(クリア)', clear_confirm: 'ダウンロード履歴を削除する?', show_sensitive: 'センシティブな内容を常に表示する', pattern: 'ファイル名パターン',
-          bulk_section: 'メディア一括', bulk_zip: 'ZIPでダウンロード', bulk_zip_chunk: 'ZIPを分割する', bulk_zip_unchunked_warn: '巨大な単一ZIPはタブをフリーズ/クラッシュさせることがあります。', bulk_zip_max_files: 'ZIPあたり最大ファイル数', bulk_zip_max_mb: 'ZIPあたり最大MB', bulk_scrape_limit: '取得上限', bulk_redownload: '取得済みも再ダウンロード'
-        },
-        bulk: {
-          menu: 'メディア一括ダウンロード', start: 'すべてダウンロード', stop: '停止', need_media: 'プロフィールのメディアタブを開いてください。',
-          hide: '隠す', hide_title: '一括パネルを隠す', show: '一括DL', show_title: '一括ダウンロードパネルを表示',
-          opts_hint: 'この実行のみ有効。初期値は設定から読み込みます。',
-          redownload_confirm: '再ダウンロードが有効です。完了済みも再取得します。続行しますか?',
-          scrolling: 'スクロール中… {n}/{limit} 件', nothing: 'ダウンロード対象なし', stopping: '停止中…',
-          downloading: 'ダウンロード中 {done}/{total} (失敗 {failed})',
-          resolving: '解決中 {done}/{total}… ({id})',
-          fetching: '取得中 {done}/{total} - ファイル {file}/{files} (失敗 {failed})',
-          zipping: 'ZIP作成中 part {n}… {pct}% ({files} ファイル)',
-          zip_saving: 'ZIP part {n} を保存中…',
-          done: '完了: {n} 件、失敗 {failed}', stopped: '{n} 件で停止', failed: '失敗'
-        }
-      },
-      zh: {
-        download: '下载', completed: '下载完成', settings: '设置',
-        dialog: {
-          title: '下载设置', save: '保存', save_history: '保存下载记录', clear_history: '(清除)', clear_confirm: '确认要清除下载记录?', show_sensitive: '自动显示敏感的内容', pattern: '文件名格式',
-          bulk_section: '媒体页批量', bulk_zip: '打包为 ZIP', bulk_zip_chunk: '分割 ZIP', bulk_zip_unchunked_warn: '单个超大 ZIP 可能导致标签页卡死或崩溃。', bulk_zip_max_files: '每个 ZIP 最大文件数', bulk_zip_max_mb: '每个 ZIP 最大 MB', bulk_scrape_limit: '抓取上限', bulk_redownload: '重新下载已完成的'
-        },
-        bulk: {
-          menu: '批量下载媒体页', start: '全部下载', stop: '停止', need_media: '请先打开用户的媒体标签页。',
-          hide: '隐藏', hide_title: '隐藏批量面板', show: '批量下载', show_title: '显示批量下载面板',
-          opts_hint: '仅用于本次运行。默认值来自设置。',
-          redownload_confirm: '已开启重新下载,将再次获取已完成的推文。继续?',
-          scrolling: '滚动中… {n}/{limit}', nothing: '没有可下载的内容', stopping: '正在停止…',
-          downloading: '下载中 {done}/{total}(失败 {failed})',
-          resolving: '解析中 {done}/{total}… ({id})',
-          fetching: '拉取媒体 {done}/{total} - 文件 {file}/{files}(失败 {failed})',
-          zipping: '正在打包 ZIP 第 {n} 卷… {pct}%({files} 个文件)',
-          zip_saving: '正在写入 ZIP 第 {n} 卷…',
-          done: '完成:{n} 个,失败 {failed}', stopped: '已停止({n})', failed: '失败'
-        }
-      },
-      'zh-Hant': {
-        download: '下載', completed: '下載完成', settings: '設置',
-        dialog: {
-          title: '下載設置', save: '保存', save_history: '保存下載記錄', clear_history: '(清除)', clear_confirm: '確認要清除下載記錄?', show_sensitive: '自動顯示敏感的内容', pattern: '文件名規則',
-          bulk_section: '媒體頁批量', bulk_zip: '打包為 ZIP', bulk_zip_chunk: '分割 ZIP', bulk_zip_unchunked_warn: '單一超大 ZIP 可能導致分頁凍結或崩潰。', bulk_zip_max_files: '每個 ZIP 最大檔案數', bulk_zip_max_mb: '每個 ZIP 最大 MB', bulk_scrape_limit: '抓取上限', bulk_redownload: '重新下載已完成的'
-        },
-        bulk: {
-          menu: '批量下載媒體頁', start: '全部下載', stop: '停止', need_media: '請先開啟使用者的媒體分頁。',
-          hide: '隱藏', hide_title: '隱藏批量面板', show: '批量下載', show_title: '顯示批量下載面板',
-          opts_hint: '僅用於本次執行。預設值來自設定。',
-          redownload_confirm: '已開啟重新下載,將再次取得已完成的推文。繼續?',
-          scrolling: '捲動中… {n}/{limit}', nothing: '沒有可下載的內容', stopping: '正在停止…',
-          downloading: '下載中 {done}/{total}(失敗 {failed})',
-          resolving: '解析中 {done}/{total}… ({id})',
-          fetching: '拉取媒體 {done}/{total} - 檔案 {file}/{files}(失敗 {failed})',
-          zipping: '正在打包 ZIP 第 {n} 卷… {pct}%({files} 個檔案)',
-          zip_saving: '正在寫入 ZIP 第 {n} 卷…',
-          done: '完成:{n} 個,失敗 {failed}', stopped: '已停止({n})', failed: '失敗'
         }
       }
     },
@@ -1467,7 +1718,7 @@ const TMD = (function () {
 .tmd-bulk-opt input[type="checkbox"] {accent-color: #1d9bf0; width: 15px; height: 15px; margin: 0;}
 .tmd-bulk-opt-num {gap: 8px;}
 .tmd-bulk-opt-num .tmd-settings-number {width: 72px;}
-.tmd-bulk-chunk-fields {display: inline-flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;}
+.tmd-bulk-chunk-fields, .tmd-bulk-limit-fields {display: inline-flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;}
 .tmd-bulk-warn {display: none; width: 100%; font-size: 12px; line-height: 1.35; color: #e7a238;}
 .tmd-bulk-hint {width: 100%; font-size: 11px; line-height: 1.35; color: #71767b;}
 /* Stack above X's bottom-right FABs (chat + companion), matching their circular size/spacing. */
