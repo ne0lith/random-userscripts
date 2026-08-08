@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name        Twitter Media Downloader
 // @description Save Video/Photo by One-Click.
-// @version     1.55
+// @version     1.56
 // @author      AMANE
 // @namespace   none
 // @match       https://x.com/*
@@ -1161,27 +1161,39 @@ const TMD = (function () {
       async function collectIdsManual(limit, onProgress) {
         let seen = new Set();
         let ids = [];
+        let lastReported = -1;
+        let scrollQueued = false;
         return await new Promise(resolve => {
           let done = false;
           const finish = () => {
             if (done) return;
             done = true;
-            obs.disconnect();
             clearInterval(iv);
             window.removeEventListener('scroll', onScroll, true);
             document.removeEventListener('scroll', onScroll, true);
             resolve(ids);
           };
           const tick = () => {
+            if (done) return;
             scanIds(seen, ids);
             if (ids.length > limit) ids.length = limit;
-            onProgress(ids.length);
+            // Only touch the UI when the count changes - avoids layout thrash while scrolling.
+            if (ids.length !== lastReported) {
+              lastReported = ids.length;
+              onProgress(ids.length);
+            }
             if (abort || manualProceed || ids.length >= limit) finish();
           };
-          const onScroll = () => tick();
-          const obs = new MutationObserver(() => tick());
-          obs.observe(document.body, { childList: true, subtree: true });
-          const iv = setInterval(tick, 300);
+          const onScroll = () => {
+            if (scrollQueued || done) return;
+            scrollQueued = true;
+            requestAnimationFrame(() => {
+              scrollQueued = false;
+              tick();
+            });
+          };
+          // No MutationObserver: updating our status/button would re-fire it and freeze the tab.
+          const iv = setInterval(tick, 500);
           window.addEventListener('scroll', onScroll, { passive: true, capture: true });
           document.addEventListener('scroll', onScroll, { passive: true, capture: true });
           tick();
