@@ -7,7 +7,7 @@
 // @description:ja ワンクリックで動画・画像を保存する。
 // @description:zh-cn 一键保存视频/图片
 // @description:zh-tw 一鍵保存視頻/圖片
-// @version     1.46
+// @version     1.50
 // @author      AMANE
 // @namespace   none
 // @match       https://x.com/*
@@ -17,6 +17,10 @@
 // @grant       GM_getValue
 // @grant       GM_download
 // @grant       GM_xmlhttpRequest
+// @connect     cdn.syndication.twimg.com
+// @connect     video.twimg.com
+// @connect     pbs.twimg.com
+// @connect     twimg.com
 // @require     https://cdnjs.cloudflare.com/ajax/libs/jszip/3.9.1/jszip.min.js
 // @compatible  Chrome
 // @compatible  Firefox
@@ -41,7 +45,33 @@ const TMD = (function () {
   function statusIdFromHref(href) {
     if (!href) return null;
     let part = href.split('/status/').pop();
-    return part ? part.split('/').shift() : null;
+    return part ? part.split(/[/?#]/).shift() : null;
+  }
+
+  // Prefer the tweet's own permalink, never a nested quote / analytics link.
+  function statusIdFromArticle(article) {
+    if (!article) return null;
+    let time = article.querySelector('a[href*="/status/"] time') || article.querySelector('time');
+    if (time) {
+      let timeLink = time.closest('a[href*="/status/"]');
+      let id = statusIdFromHref(timeLink && timeLink.href);
+      if (id) return id;
+    }
+    let anchors = article.querySelectorAll('a[href*="/status/"]');
+    for (let i = 0; i < anchors.length; i++) {
+      let a = anchors[i];
+      if (a.closest('[data-testid="quoteTweet"]')) continue;
+      let href = a.getAttribute('href') || '';
+      if (/\/status\/\d+\/(analytics|likes|retweets|quotes|photo|video)/.test(href)) {
+        let id = statusIdFromHref(href);
+        if (id) return id;
+        continue;
+      }
+      if (!/\/status\/\d+\/?$/.test(href.split('?')[0])) continue;
+      let id = statusIdFromHref(a.href);
+      if (id) return id;
+    }
+    return null;
   }
 
   function sanitize(text) {
@@ -139,6 +169,7 @@ const TMD = (function () {
     addButtonTo: function (article) {
       if (article.dataset.detected) return;
       let lightbox = location.pathname.match(/\/status\/(\d+)\/(photo|video)\/(\d+)/);
+      let pathStatus = location.pathname.match(/\/status\/(\d+)/);
       let inLightboxDialog = !!(lightbox && article.closest('[role="dialog"], [aria-modal="true"]'));
       let media_selector = [
         'a[href*="/photo/1"]',
@@ -152,16 +183,27 @@ const TMD = (function () {
         '[data-testid="videoPlayer"]',
         '[data-testid="videoComponent"]'
       ];
-      let media = article.querySelector(media_selector.join(','));
-      let status_anchor = article.querySelector('a[href*="/status/"]');
-      let status_id = statusIdFromHref(status_anchor && status_anchor.href);
-      // Lightbox: prefer the status id from the URL for the side panel article.
-      if (inLightboxDialog) {
-        if (status_id && status_id !== lightbox[1]) {
-          article.dataset.detected = 'true';
-          return;
+      // Ignore media that only lives inside a quoted tweet (deleted quote, etc.).
+      let mediaNodes = article.querySelectorAll(media_selector.join(','));
+      let media = null;
+      for (let i = 0; i < mediaNodes.length; i++) {
+        if (!mediaNodes[i].closest('[data-testid="quoteTweet"]')) {
+          media = mediaNodes[i];
+          break;
         }
-        status_id = lightbox[1];
+      }
+      let status_id = statusIdFromArticle(article);
+      // On /status/{id} (and lightbox), never use a nested quote's id for the focused tweet.
+      if (pathStatus) {
+        if (inLightboxDialog) {
+          if (status_id && status_id !== pathStatus[1]) {
+            article.dataset.detected = 'true';
+            return;
+          }
+          status_id = pathStatus[1];
+        } else if (status_id === pathStatus[1] || !status_id) {
+          status_id = pathStatus[1];
+        }
       }
       let btn_group = article.querySelector('div[role="group"]:last-of-type, ul.tweet-actions, ul.tweet-detail-actions');
       // Photo/video lightbox: player is often outside the article; actions/share still live here.
@@ -174,7 +216,7 @@ const TMD = (function () {
         article.dataset.detected = 'true';
         return;
       }
-      if (!status_id) status_id = lightbox && lightbox[1];
+      if (!status_id) status_id = pathStatus && pathStatus[1];
       if (!status_id) {
         if (inLightboxDialog) return;
         article.dataset.detected = 'true';
@@ -321,12 +363,17 @@ const TMD = (function () {
         GM_xmlhttpRequest({
           method: 'GET',
           url: url,
-          responseType: 'json',
+          // text + manual parse is more reliable than responseType:json across TM/Violentmonkey
+          responseType: 'text',
+          anonymous: true,
           onload: r => {
-            let data = r.response;
-            if (typeof data === 'string') {
-              try { data = JSON.parse(data); } catch (e) { data = null; }
+            if (r.status < 200 || r.status >= 300) {
+              reject(new Error('TWEET_UNAVAILABLE'));
+              return;
             }
+            let raw = r.responseText != null ? r.responseText : r.response;
+            let data = null;
+            try { data = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch (e) { data = null; }
             if (!data || typeof data !== 'object' || !Object.keys(data).length) {
               reject(new Error('TWEET_UNAVAILABLE'));
               return;
@@ -373,13 +420,68 @@ const TMD = (function () {
       let files = this.buildMediaFiles(medias, info, out, index);
       return {status_id: status_id, user_id: info['user-id'], files: files};
     },
+    collectPageMediaUrls: function (status_id) {
+      let found = new Set();
+      let re = /https?:\/\/video\.twimg\.com\/[^"'\\\s>]+\.mp4[^"'\\\s>]*/gi;
+      let push = (u) => {
+        if (!u || u.indexOf('blob:') === 0) return;
+        let m = String(u).match(re);
+        if (m) m.forEach(x => found.add(x.replace(/&amp;/g, '&')));
+        else if (/video\.twimg\.com\/.+\.mp4/i.test(u)) found.add(String(u).replace(/&amp;/g, '&'));
+      };
+      try {
+        performance.getEntriesByType('resource').forEach(e => push(e.name));
+      } catch (e) {}
+      document.querySelectorAll('video source[src], video[src], a[href*="video.twimg.com"]').forEach(el => {
+        push(el.src || el.href || el.getAttribute('src') || el.getAttribute('href'));
+      });
+      // X often leaves media metadata in script/JSON blobs even when GraphQL tombstones the tweet.
+      document.querySelectorAll('script').forEach(s => {
+        let t = s.textContent || '';
+        if (t.indexOf('video.twimg.com') < 0) return;
+        let m;
+        re.lastIndex = 0;
+        while ((m = re.exec(t))) found.add(m[0].replace(/&amp;/g, '&'));
+      });
+      return Array.from(found);
+    },
+    resolveFromPage: async function (status_id, index, out) {
+      let urls = this.collectPageMediaUrls(status_id);
+      if (!urls.length) throw new Error('TWEET_UNAVAILABLE');
+      // Prefer higher-res variants when path includes size hints (…/avc1/WxH/…).
+      urls.sort((a, b) => {
+        let sa = (a.match(/\/(\d+)x(\d+)\//) || [0, 0, 0]).slice(1).reduce((n, v) => n * Number(v), 1);
+        let sb = (b.match(/\/(\d+)x(\d+)\//) || [0, 0, 0]).slice(1).reduce((n, v) => n * Number(v), 1);
+        return sb - sa;
+      });
+      let best = urls[0];
+      let pathUser = (location.pathname.match(/^\/([^/]+)\//) || [])[1] || 'unknown';
+      let datetime = out.match(/{date-time(-local)?:[^{}]+}/) ? out.match(/{date-time(?:-local)?:([^{}]+)}/)[1].replace(/[\\/|<>*?:"]/g, v => INVALID_CHARS[v] || '') : 'YYYYMMDD-hhmmss';
+      let now = new Date().toISOString();
+      let info = {
+        'status-id': status_id,
+        'user-name': sanitize(pathUser),
+        'user-id': pathUser,
+        'date-time': this.formatDate(now, datetime),
+        'date-time-local': this.formatDate(now, datetime, true),
+        'full-text': ''
+      };
+      let medias = [{type: 'video', video_info: {variants: [{content_type: 'video/mp4', url: best, bitrate: 1}]}}];
+      let files = this.buildMediaFiles(medias, info, out, index);
+      return {status_id: status_id, user_id: pathUser, files: files};
+    },
     resolveTweetMedia: async function (status_id, index) {
       let out = (await GM_getValue('filename', filename)).split('\n').join('');
       try {
         return await this.resolveFromGraphql(status_id, index, out);
-      } catch (e) {
-        console.warn('[TMD] graphql resolve failed, trying syndication', status_id, e && e.message);
-        return await this.resolveFromSyndication(status_id, index, out);
+      } catch (e1) {
+        console.warn('[TMD] graphql resolve failed, trying syndication', status_id, e1 && e1.message);
+        try {
+          return await this.resolveFromSyndication(status_id, index, out);
+        } catch (e2) {
+          console.warn('[TMD] syndication resolve failed, trying page media', status_id, e2 && e2.message);
+          return await this.resolveFromPage(status_id, index, out);
+        }
       }
     },
     click: async function (btn, status_id, is_exist, index) {
@@ -724,23 +826,57 @@ const TMD = (function () {
       });
     },
     bulk: (function () {
-      let bar, statusEl, startBtn, stopBtn, optsEl;
+      let bar, fab, statusEl, fabStatusEl, startBtn, stopBtn, hideBtn, optsEl;
       let zipInput, chunkInput, redownloadInput, filesInput, mbInput, limitInput, warnEl, chunkFields;
       let running = false;
       let abort = false;
+      let collapsed = false;
       let lastPath = '';
 
       function setStatus(text) {
         if (statusEl) statusEl.textContent = text || '';
+        if (fab) {
+          let base = lang && lang.bulk ? lang.bulk.show_title : 'Show bulk download panel';
+          fab.title = text ? (base + ' - ' + text) : base;
+          fab.setAttribute('aria-label', fab.title);
+        }
+        if (fabStatusEl) {
+          fabStatusEl.textContent = text ? '•' : '';
+          fabStatusEl.style.display = text && running ? '' : 'none';
+        }
+      }
+
+      function applyCollapsed() {
+        if (!bar) return;
+        if (!isMediaPage()) {
+          bar.style.display = 'none';
+          if (fab) fab.style.display = 'none';
+          return;
+        }
+        if (collapsed) {
+          bar.style.display = 'none';
+          if (fab) fab.style.display = 'flex';
+        } else {
+          bar.style.display = '';
+          if (fab) fab.style.display = 'none';
+        }
+      }
+
+      function setCollapsed(value) {
+        collapsed = !!value;
+        GM_setValue('bulk_bar_collapsed', collapsed);
+        applyCollapsed();
       }
 
       function setRunning(isRunning) {
         running = isRunning;
         if (startBtn) startBtn.disabled = isRunning;
         if (stopBtn) stopBtn.disabled = !isRunning;
+        if (hideBtn) hideBtn.disabled = false;
         [zipInput, chunkInput, redownloadInput, filesInput, mbInput, limitInput].forEach(el => {
           if (el) el.disabled = isRunning;
         });
+        if (fab) fab.classList.toggle('tmd-bulk-fab-running', isRunning);
       }
 
       function syncOptUi() {
@@ -787,14 +923,16 @@ const TMD = (function () {
       }
 
       return {
-        ensureBar: function () {
+        ensureBar: async function () {
           let onMedia = isMediaPage();
           if (!onMedia) {
             if (bar) bar.style.display = 'none';
+            if (fab) fab.style.display = 'none';
             lastPath = location.pathname;
             return;
           }
           if (!bar) {
+            collapsed = await GM_getValue('bulk_bar_collapsed', false);
             bar = document.createElement('div');
             bar.className = 'tmd-bulk-bar';
             bar.innerHTML =
@@ -803,6 +941,7 @@ const TMD = (function () {
                   '<button type="button" class="tmd-btn tmd-bulk-start"></button>' +
                   '<button type="button" class="tmd-btn-ghost tmd-bulk-stop" disabled></button>' +
                   '<span class="tmd-bulk-status"></span>' +
+                  '<button type="button" class="tmd-btn-ghost tmd-bulk-hide" title=""></button>' +
                 '</div>' +
                 '<div class="tmd-bulk-opts">' +
                   '<label class="tmd-bulk-opt tmd-bulk-opt-num"><span></span> <input type="number" min="1" class="tmd-settings-number tmd-bulk-limit"></label>' +
@@ -818,9 +957,20 @@ const TMD = (function () {
                 '</div>' +
               '</div>';
             document.body.appendChild(bar);
+            fab = document.createElement('button');
+            fab.type = 'button';
+            fab.className = 'tmd-bulk-fab';
+            fab.innerHTML =
+              '<svg class="tmd-bulk-fab-icon" viewBox="0 0 24 24" aria-hidden="true">' +
+                '<path d="M3,14 v5 q0,2 2,2 h14 q2,0 2,-2 v-5 M7,10 l4,4 q1,1 2,0 l4,-4 M12,3 v11" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" />' +
+              '</svg>' +
+              '<span class="tmd-bulk-fab-status" aria-hidden="true"></span>';
+            document.body.appendChild(fab);
             startBtn = bar.querySelector('.tmd-bulk-start');
             stopBtn = bar.querySelector('.tmd-bulk-stop');
+            hideBtn = bar.querySelector('.tmd-bulk-hide');
             statusEl = bar.querySelector('.tmd-bulk-status');
+            fabStatusEl = fab.querySelector('.tmd-bulk-fab-status');
             optsEl = bar.querySelector('.tmd-bulk-opts');
             zipInput = bar.querySelector('.tmd-bulk-zip');
             chunkInput = bar.querySelector('.tmd-bulk-chunk');
@@ -832,11 +982,19 @@ const TMD = (function () {
             chunkFields = bar.querySelector('.tmd-bulk-chunk-fields');
             startBtn.onclick = () => TMD.bulk.start();
             stopBtn.onclick = () => TMD.bulk.stop();
+            hideBtn.onclick = () => setCollapsed(true);
+            fab.onclick = () => {
+              setCollapsed(false);
+            };
             zipInput.onchange = syncOptUi;
             chunkInput.onchange = syncOptUi;
           }
           startBtn.textContent = lang.bulk.start;
           stopBtn.textContent = lang.bulk.stop;
+          hideBtn.textContent = lang.bulk.hide;
+          hideBtn.title = lang.bulk.hide_title;
+          fab.title = lang.bulk.show_title;
+          fab.setAttribute('aria-label', lang.bulk.show_title);
           bar.querySelector('.tmd-bulk-limit').previousElementSibling.textContent = lang.dialog.bulk_scrape_limit;
           bar.querySelector('.tmd-bulk-zip + span').textContent = lang.dialog.bulk_zip;
           bar.querySelector('.tmd-bulk-chunk + span').textContent = lang.dialog.bulk_zip_chunk;
@@ -845,20 +1003,24 @@ const TMD = (function () {
           bar.querySelector('.tmd-bulk-max-mb').previousElementSibling.textContent = lang.dialog.bulk_zip_max_mb;
           warnEl.textContent = lang.dialog.bulk_zip_unchunked_warn;
           bar.querySelector('.tmd-bulk-hint').textContent = lang.bulk.opts_hint;
-          bar.style.display = '';
           if (!running && (lastPath !== location.pathname || !zipInput.dataset.ready)) {
             if (lastPath !== location.pathname) setStatus('');
             loadOptDefaults();
             zipInput.dataset.ready = '1';
           }
           lastPath = location.pathname;
+          applyCollapsed();
         },
-        toggleFromMenu: function () {
+        toggleFromMenu: async function () {
           if (!isMediaPage()) {
             alert(lang.bulk.need_media);
             return;
           }
-          this.ensureBar();
+          await this.ensureBar();
+          if (collapsed) {
+            setCollapsed(false);
+            return;
+          }
           if (running) this.stop();
           else this.start();
         },
@@ -872,7 +1034,8 @@ const TMD = (function () {
             alert(lang.bulk.need_media);
             return;
           }
-          this.ensureBar();
+          await this.ensureBar();
+          setCollapsed(false);
           let opts = readRunOptions();
           if (opts.redownload && !confirm(lang.bulk.redownload_confirm)) return;
           abort = false;
@@ -1173,12 +1336,13 @@ const TMD = (function () {
         },
         bulk: {
           menu: 'Bulk download media page', start: 'Download all', stop: 'Stop', need_media: 'Open a profile Media tab first.',
+          hide: 'Hide', hide_title: 'Hide bulk panel', show: 'Bulk download', show_title: 'Show bulk download panel',
           opts_hint: 'These options apply to this run only. Defaults come from Settings.',
           redownload_confirm: 'Re-download is on. Previously completed tweets will be fetched again. Continue?',
           scrolling: 'Scrolling… {n}/{limit} found', nothing: 'Nothing to download', stopping: 'Stopping…',
           downloading: 'Downloading {done}/{total} (failed {failed})',
           resolving: 'Resolving {done}/{total}… ({id})',
-          fetching: 'Fetching media {done}/{total} — file {file}/{files} (failed {failed})',
+          fetching: 'Fetching media {done}/{total} - file {file}/{files} (failed {failed})',
           zipping: 'Building ZIP part {n}… {pct}% ({files} files)',
           zip_saving: 'Writing ZIP part {n} to disk…',
           done: 'Done: {n} saved, {failed} failed', stopped: 'Stopped after {n}', failed: 'Failed'
@@ -1192,12 +1356,13 @@ const TMD = (function () {
         },
         bulk: {
           menu: 'メディア一括ダウンロード', start: 'すべてダウンロード', stop: '停止', need_media: 'プロフィールのメディアタブを開いてください。',
+          hide: '隠す', hide_title: '一括パネルを隠す', show: '一括DL', show_title: '一括ダウンロードパネルを表示',
           opts_hint: 'この実行のみ有効。初期値は設定から読み込みます。',
           redownload_confirm: '再ダウンロードが有効です。完了済みも再取得します。続行しますか?',
           scrolling: 'スクロール中… {n}/{limit} 件', nothing: 'ダウンロード対象なし', stopping: '停止中…',
           downloading: 'ダウンロード中 {done}/{total} (失敗 {failed})',
           resolving: '解決中 {done}/{total}… ({id})',
-          fetching: '取得中 {done}/{total} — ファイル {file}/{files} (失敗 {failed})',
+          fetching: '取得中 {done}/{total} - ファイル {file}/{files} (失敗 {failed})',
           zipping: 'ZIP作成中 part {n}… {pct}% ({files} ファイル)',
           zip_saving: 'ZIP part {n} を保存中…',
           done: '完了: {n} 件、失敗 {failed}', stopped: '{n} 件で停止', failed: '失敗'
@@ -1211,15 +1376,16 @@ const TMD = (function () {
         },
         bulk: {
           menu: '批量下载媒体页', start: '全部下载', stop: '停止', need_media: '请先打开用户的媒体标签页。',
+          hide: '隐藏', hide_title: '隐藏批量面板', show: '批量下载', show_title: '显示批量下载面板',
           opts_hint: '仅用于本次运行。默认值来自设置。',
           redownload_confirm: '已开启重新下载,将再次获取已完成的推文。继续?',
           scrolling: '滚动中… {n}/{limit}', nothing: '没有可下载的内容', stopping: '正在停止…',
-          downloading: '下载中 {done}/{total}（失败 {failed}）',
+          downloading: '下载中 {done}/{total}(失败 {failed})',
           resolving: '解析中 {done}/{total}… ({id})',
-          fetching: '拉取媒体 {done}/{total} — 文件 {file}/{files}（失败 {failed}）',
-          zipping: '正在打包 ZIP 第 {n} 卷… {pct}%（{files} 个文件）',
+          fetching: '拉取媒体 {done}/{total} - 文件 {file}/{files}(失败 {failed})',
+          zipping: '正在打包 ZIP 第 {n} 卷… {pct}%({files} 个文件)',
           zip_saving: '正在写入 ZIP 第 {n} 卷…',
-          done: '完成：{n} 个，失败 {failed}', stopped: '已停止（{n}）', failed: '失败'
+          done: '完成:{n} 个,失败 {failed}', stopped: '已停止({n})', failed: '失败'
         }
       },
       'zh-Hant': {
@@ -1230,15 +1396,16 @@ const TMD = (function () {
         },
         bulk: {
           menu: '批量下載媒體頁', start: '全部下載', stop: '停止', need_media: '請先開啟使用者的媒體分頁。',
+          hide: '隱藏', hide_title: '隱藏批量面板', show: '批量下載', show_title: '顯示批量下載面板',
           opts_hint: '僅用於本次執行。預設值來自設定。',
           redownload_confirm: '已開啟重新下載,將再次取得已完成的推文。繼續?',
           scrolling: '捲動中… {n}/{limit}', nothing: '沒有可下載的內容', stopping: '正在停止…',
-          downloading: '下載中 {done}/{total}（失敗 {failed}）',
+          downloading: '下載中 {done}/{total}(失敗 {failed})',
           resolving: '解析中 {done}/{total}… ({id})',
-          fetching: '拉取媒體 {done}/{total} — 檔案 {file}/{files}（失敗 {failed}）',
-          zipping: '正在打包 ZIP 第 {n} 卷… {pct}%（{files} 個檔案）',
+          fetching: '拉取媒體 {done}/{total} - 檔案 {file}/{files}(失敗 {failed})',
+          zipping: '正在打包 ZIP 第 {n} 卷… {pct}%({files} 個檔案)',
           zip_saving: '正在寫入 ZIP 第 {n} 卷…',
-          done: '完成：{n} 個，失敗 {failed}', stopped: '已停止（{n}）', failed: '失敗'
+          done: '完成:{n} 個,失敗 {failed}', stopped: '已停止({n})', failed: '失敗'
         }
       }
     },
@@ -1293,6 +1460,8 @@ const TMD = (function () {
 .tmd-bulk-bar-inner {pointer-events: auto; display: flex; flex-direction: column; gap: 10px; max-width: 920px; margin: 0 auto; padding: 12px 14px; background: #16181c; border: 1px solid #2f3336; border-radius: 12px; box-shadow: 0 8px 28px rgba(0,0,0,0.45); color: #e7e9ea; font: 500 13px/1.3 system-ui, -apple-system, sans-serif;}
 .tmd-bulk-actions {display: flex; align-items: center; gap: 10px;}
 .tmd-bulk-status {flex: 1; min-width: 0; color: #71767b; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;}
+.tmd-bulk-hide {flex-shrink: 0; color: #71767b !important;}
+.tmd-bulk-hide:hover {color: #e7e9ea !important;}
 .tmd-bulk-opts {display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding-top: 8px; border-top: 1px solid #2f3336;}
 .tmd-bulk-opt {display: inline-flex; align-items: center; gap: 6px; cursor: pointer; color: #e7e9ea; font-weight: 500; user-select: none;}
 .tmd-bulk-opt input[type="checkbox"] {accent-color: #1d9bf0; width: 15px; height: 15px; margin: 0;}
@@ -1301,6 +1470,19 @@ const TMD = (function () {
 .tmd-bulk-chunk-fields {display: inline-flex; flex-wrap: wrap; gap: 8px 14px; align-items: center;}
 .tmd-bulk-warn {display: none; width: 100%; font-size: 12px; line-height: 1.35; color: #e7a238;}
 .tmd-bulk-hint {width: 100%; font-size: 11px; line-height: 1.35; color: #71767b;}
+/* Stack above X's bottom-right FABs (chat + companion), matching their circular size/spacing. */
+.tmd-bulk-fab {position: fixed; right: 20px; bottom: calc(20px + 52px + 16px + 52px + 16px); z-index: 9991; display: none; align-items: center; justify-content: center; width: 52px; height: 52px; margin: 0; padding: 0; border: 0; border-radius: 9999px; background: #1d9bf0; color: #fff; box-shadow: rgba(0,0,0,0.08) 0px 8px 28px, rgba(0,0,0,0.2) 0 0 1px; cursor: pointer; transition: background 0.15s ease, transform 0.15s ease; overflow: visible;}
+.tmd-bulk-fab:hover {background: #1a8cd8;}
+.tmd-bulk-fab:active {transform: scale(0.96);}
+.tmd-bulk-fab-icon {width: 22px; height: 22px; display: block;}
+.tmd-bulk-fab-status {display: none; position: absolute; top: 2px; right: 2px; width: 10px; height: 10px; border-radius: 50%; background: #fff; box-shadow: 0 0 0 2px #1d9bf0;}
+.tmd-bulk-fab-running {background: #1d9bf0;}
+.tmd-bulk-fab-running .tmd-bulk-fab-icon {animation: spin 1s linear infinite;}
+.tmd-bulk-fab-running .tmd-bulk-fab-status {display: block;}
+@media (max-width: 700px) {
+  .tmd-bulk-fab {right: 16px; bottom: calc(16px + 48px + 12px + 48px + 12px); width: 48px; height: 48px;}
+  .tmd-bulk-fab-icon {width: 20px; height: 20px;}
+}
 .tmd-notifier {display: none; position: fixed; left: 16px; bottom: 16px; color: #e7e9ea; background: #16181c; border: 1px solid #2f3336; border-radius: 12px; padding: 6px 4px; box-shadow: 0 8px 32px rgba(0,0,0,0.45);}
 .tmd-notifier.running {display: flex; align-items: center;}
 .tmd-notifier label {display: inline-flex; align-items: center; margin: 0 8px; color: #e7e9ea;}
